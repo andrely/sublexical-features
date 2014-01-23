@@ -1,6 +1,6 @@
 import unittest
 
-from brown_clustering.utilities import initial_clusters
+from brown_clustering.learner.utilities import initial_clusters
 
 
 class UtilitiesTestCase(unittest.TestCase):

@@ -1,7 +1,7 @@
 from nltk import FreqDist, MLEProbDist, bigrams
 from numpy import zeros, inf, unravel_index
 
-from cluster_description import ClusterDescription
+from brown_clustering.learner.cluster_description import ClusterDescription
 from utilities import ent_log
 
 
