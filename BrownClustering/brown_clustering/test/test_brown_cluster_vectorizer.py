@@ -17,7 +17,7 @@ vect_input = ["the cat chased the mouse",
 
 class TestBrownClusterVectorizer(TestCase):
     def test_parse_cluster_file(self):
-        word_to_cluster, cluster_to_word = _parse_cluster_file(StringIO(cluster_input))
+        word_to_cluster, cluster_to_word, freqs = _parse_cluster_file(StringIO(cluster_input))
 
         self.assertEquals(word_to_cluster['the'], 0)
         self.assertEquals(word_to_cluster['chased'], 2)
@@ -30,6 +30,12 @@ class TestBrownClusterVectorizer(TestCase):
         self.assertEquals(cluster_to_word[6], ['dog'])
         self.assertEquals(cluster_to_word[14], ['mouse'])
         self.assertEquals(cluster_to_word[15], ['cat'])
+
+        self.assertEquals(freqs['the'], 6)
+        self.assertEquals(freqs['dog'], 2)
+        self.assertEquals(freqs['cat'], 2)
+        self.assertEquals(freqs['mouse'], 2)
+        self.assertEquals(freqs['chased'], 3)
 
     def test_fit(self):
         vect = BrownClusterVectorizer(CLUSTER_FN)
