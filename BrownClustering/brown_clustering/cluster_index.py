@@ -24,7 +24,7 @@ class ClusterIndex(object):
 
 def _parse_cluster_file(f):
     line_num = 0
-    word_to_cluster = {}
+    word_to_cluster = defaultdict(lambda: None)
     cluster_to_word = defaultdict(lambda: [])
     freqs = defaultdict(lambda: 0)
 

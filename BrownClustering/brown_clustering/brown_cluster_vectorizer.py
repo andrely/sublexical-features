@@ -1,12 +1,11 @@
-from scipy.sparse import csr_matrix
-
-from sklearn.base import BaseEstimator
+from scipy.sparse import lil_matrix
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_extraction.text import VectorizerMixin
 
 from brown_clustering.cluster_index import ClusterIndex
 
 
-class BrownClusterVectorizer(BaseEstimator, VectorizerMixin):
+class BrownClusterVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
     def __init__(self, cluster_fn):
         self.cluster_fn = cluster_fn
 
@@ -33,12 +32,14 @@ class BrownClusterVectorizer(BaseEstimator, VectorizerMixin):
         return self
 
     def transform(self, raw_documents):
-        x = csr_matrix((len(raw_documents), self.cluster_index.n_cluster))
+        x = lil_matrix((len(raw_documents), self.cluster_index.n_cluster))
 
         for row, doc in enumerate(raw_documents):
             for token in self.analyzer_func(doc):
                 idx = self.cluster_index.cluster(token)
-                x[row, idx] += 1
+
+                if idx:
+                    x[row, idx] += 1
 
 
-        return x
+        return x.tocsr()
