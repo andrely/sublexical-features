@@ -5,11 +5,12 @@ import os
 
 from numpy import ndarray
 
-from experiments.preprocessing import mahoney_clean
-
 
 data_path = '/Users/stinky/Work/data'
 newsgroups_corpus_path = os.path.join(data_path, '20_newsgroups')
+
+_corpus_body_cache = None
+_corpus_index_cache = None
 
 article_count = 19997
 topic_count = {
@@ -65,6 +66,14 @@ def parse_articles(corpus_path, include_body=True):
                    'body': body}
 
 
+def _get_article_index(corpus_path):
+    global _corpus_index_cache
+
+    if not _corpus_index_cache:
+        _corpus_index_cache = _build_article_index(corpus_path)
+
+    return _corpus_index_cache
+
 def _build_article_index(corpus_path):
     index = [None] * article_count
 
@@ -74,11 +83,29 @@ def _build_article_index(corpus_path):
     return index
 
 
+def _initialize_body_cache(corpus_path):
+    art_index = _get_article_index(corpus_path)
+    body_index = {}
+
+    for art_id, group in art_index:
+        body_index["%d_%s" % (art_id, group)] = parse_fn(os.path.join(corpus_path, group, str(art_id)))
+
+    return body_index
+
+
+def _get_body_index(corpus_path):
+    global _corpus_body_cache
+
+    if not _corpus_body_cache:
+        _corpus_body_cache = _initialize_body_cache(corpus_path)
+
+    return _corpus_body_cache
+
 class NewsgroupsSequence(Sequence):
     __metaclass__ = ABCMeta
 
     def __init__(self, corpus_path, indices=None):
-        self.article_index = _build_article_index(corpus_path)
+        self.article_index = _get_article_index(corpus_path)
         self.corpus_path = corpus_path
         self.indices = indices
 
@@ -106,9 +133,18 @@ class GroupSequence(NewsgroupsSequence):
 
 
 class ArticleSequence(NewsgroupsSequence):
+
+    def __init__(self, corpus_path, indices=None, preprocessor=None):
+        super(ArticleSequence, self).__init__(corpus_path, indices=indices)
+
+        self.preprocessor = preprocessor
+
     @check_index
     def __getitem__(self, index):
         art_id, group = self.article_index[index]
-        body = parse_fn(os.path.join(self.corpus_path, group, str(art_id)))
+        body = _get_body_index(self.corpus_path)["%d_%s" % (art_id, group)]
 
-        return unicode(mahoney_clean(body))
+        if self.preprocessor:
+            body = self.preprocessor(body)
+
+        return unicode(body, errors='ignore')
