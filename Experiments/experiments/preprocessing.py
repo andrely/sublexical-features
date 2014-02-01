@@ -30,4 +30,9 @@ def sublexicalize(text_str, order=3):
 
     return ' '.join([''.join(token) for token in char_ngrams])
 
-# [tuple(sequence[i:i+n]) for i in range(count)]
+
+def make_preprocessor(order=None):
+    if order:
+        return lambda text_str: sublexicalize(mahoney_clean(text_str), order=order)
+    else:
+        return lambda text_str: mahoney_clean(text_str)
