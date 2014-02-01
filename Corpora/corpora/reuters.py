@@ -1,3 +1,4 @@
+from collections import Sequence
 import csv
 from glob import glob
 import logging
@@ -7,6 +8,8 @@ from BeautifulSoup import BeautifulSoup
 
 
 corpus_path = '/Users/stinky/Work/data/reuters21578'
+
+_corpus_cache = None
 
 
 def corpus_fns(corpus_path):
@@ -71,3 +74,64 @@ def corpus_to_csv(corpus_path, csv_fn):
                        '|'.join(article['companies']), article['title'], article['body']]
 
                 writer.writerow(row)
+
+
+def _initialize_cache(corpus_path):
+    cache = {'index': [], 'store': {}}
+
+    for article in corpus_articles(corpus_path):
+        cache['index'].append(article['id'])
+        cache['store'][article['id']] = (article['body'], article['topics'])
+
+    return cache
+
+
+def _set_cache(cache):
+    global _corpus_cache
+    _corpus_cache = cache
+
+
+def _get_cache():
+    global _corpus_cache
+    return _corpus_cache
+
+
+def _cache_initialized():
+    global _corpus_cache
+
+    return _corpus_cache is not None
+
+class ArticleSequence(Sequence):
+    def __init__(self, corpus_path):
+        if not _cache_initialized():
+            logging.info("Caching Reuters corpus")
+            _set_cache(_initialize_cache(corpus_path))
+        else:
+            logging.info("Using cached Reuters corpus")
+
+    def __len__(self):
+        return len(_get_cache()['index'])
+
+    def __getitem__(self, index):
+        cache = _get_cache()
+        entry = cache['store'][cache['index'][index]]
+
+        return entry[0]
+
+
+class TopicSequence(Sequence):
+    def __init__(self, corpus_path):
+        if not _cache_initialized():
+            logging.info("Caching Reuters corpus")
+            _set_cache(_initialize_cache(corpus_path))
+        else:
+            logging.info("Using cached Reuters corpus")
+
+    def __len__(self):
+        return len(_get_cache()['index'])
+
+    def __getitem__(self, index):
+        cache = _get_cache()
+        entry = cache['store'][cache['index'][index]]
+
+        return entry[1]
