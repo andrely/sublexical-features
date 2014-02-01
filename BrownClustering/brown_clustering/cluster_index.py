@@ -1,13 +1,15 @@
 from collections import defaultdict
 import logging
+
 from operator import itemgetter
 
 
 class ClusterIndex(object):
-    def __init__(self, file):
-        self.word_to_cluster, self.cluster_to_word, self.freqs = _parse_cluster_file(file)
+    def __init__(self, file, prefix_size=16):
+        self.prefix_size = prefix_size
+        self.word_to_cluster, self.cluster_to_word, self.freqs = _parse_cluster_file(file, self.prefix_size)
 
-        self.n_cluster = max(self.cluster_to_word.keys()) + 1
+        self.n_cluster = len(self.cluster_to_word.keys())
 
     def cluster(self, word):
         return self.word_to_cluster[word]
@@ -22,7 +24,7 @@ class ClusterIndex(object):
     def clusters(self):
         return self.cluster_to_word.keys()
 
-def _parse_cluster_file(f):
+def _parse_cluster_file(f, prefix_size=16):
     line_num = 0
     word_to_cluster = defaultdict(lambda: None)
     cluster_to_word = defaultdict(lambda: [])
@@ -36,8 +38,8 @@ def _parse_cluster_file(f):
         if len(tokens) != 3:
             logging.warn("Couldn't parse line %d" % line_num)
         else:
-            c = int(tokens[0], 2)
-            word = tokens[1]
+            c = tokens[0].strip()[0:prefix_size]
+            word = tokens[1].strip()
             freq = int(tokens[2])
 
             if word_to_cluster.has_key(word) or freqs.has_key(word):

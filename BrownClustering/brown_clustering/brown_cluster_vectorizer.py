@@ -5,11 +5,22 @@ from sklearn.feature_extraction.text import VectorizerMixin
 from brown_clustering.cluster_index import ClusterIndex
 
 
+def _build_vocabulary(cluster_index):
+    clusters = sorted(cluster_index.clusters())
+    vocab = {}
+
+    for i, c in enumerate(clusters):
+        vocab[c] = i
+
+    return vocab
+
+
 class BrownClusterVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
-    def __init__(self, cluster_fn):
+    def __init__(self, cluster_fn, prefix_size=16):
         self.cluster_fn = cluster_fn
 
         self.cluster_index = None
+        self.vocabulary_ = None
 
         self.analyzer = 'word'
         self.preprocessor = None
@@ -22,12 +33,17 @@ class BrownClusterVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
         self.ngram_range = (1, 1)
         self.encoding = 'utf-8'
         self.decode_error = 'strict'
+        self.prefix_size = prefix_size
+
+        self.analyzer_func = None
 
     def fit(self, raw_documents, y=None):
-        with open(self.cluster_fn) as f:
-            self.cluster_index = ClusterIndex(f)
-
         self.analyzer_func = self.build_analyzer()
+
+        with open(self.cluster_fn) as f:
+            self.cluster_index = ClusterIndex(f, prefix_size=self.prefix_size)
+
+        self.vocabulary_ = _build_vocabulary(self.cluster_index)
 
         return self
 
@@ -36,10 +52,9 @@ class BrownClusterVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
 
         for row, doc in enumerate(raw_documents):
             for token in self.analyzer_func(doc):
-                idx = self.cluster_index.cluster(token)
+                c = self.cluster_index.cluster(token)
 
-                if idx:
-                    x[row, idx] += 1
-
+                if c:
+                    x[row, self.vocabulary_[c]] += 1
 
         return x.tocsr()
