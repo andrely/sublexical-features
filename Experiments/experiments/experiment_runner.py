@@ -1,4 +1,5 @@
 from collections import Sequence
+import os
 
 from scipy import sparse
 from numpy import mean, std
@@ -9,8 +10,36 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder
 
+from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
+
 from corpora.newsgroups import ArticleSequence, GroupSequence
 from experiments.preprocessing import mahoney_clean, sublexicalize
+
+
+class MahoneyCorpus(object):
+    """Iterate over sentences from the "text8" corpus, unzipped from http://mattmahoney.net/dc/text8.zip ."""
+    def __init__(self, fname, max_sent_length=1000):
+        self.fname = fname
+        self.max_sent_length = max_sent_length
+
+    def __iter__(self):
+        # the entire corpus is one gigantic line -- there are no sentence marks at all
+        # so just split the sequence of tokens arbitrarily: 1 sentence = 1000 tokens
+        sentence, rest, max_sentence_length = [], '', self.max_sent_length
+        with open(self.fname) as fin:
+            while True:
+                text = rest + fin.read(8192)  # avoid loading the entire file (=1 line) into RAM
+                if text == rest:  # EOF
+                    sentence.extend(rest.split()) # return the last chunk of words, too (may be shorter/longer)
+                    if sentence:
+                        yield sentence
+                    break
+                last_token = text.rfind(' ')  # the last token may have been split in two... keep it for the next iteration
+                words, rest = (text[:last_token].split(), text[last_token:].strip()) if last_token >= 0 else ([], text)
+                sentence.extend(words)
+                while len(sentence) >= max_sentence_length:
+                    yield sentence[:max_sentence_length]
+                    sentence = sentence[max_sentence_length:]
 
 
 class FilteredSequence(Sequence):
@@ -72,7 +101,10 @@ def clean_c6(text_str):
     return sublexicalize(mahoney_clean(text_str), order=6)
 
 
-def baseline_pipelines():
+def baseline_pipelines(brown_cluster_path=None):
+    if not brown_cluster_path:
+        brown_cluster_path = os.getcwd()
+
     return {
         'base_word': TextPipeline(CountVectorizer(max_features=1000,
                                                   decode_error='ignore',
@@ -111,7 +143,82 @@ def baseline_pipelines():
                                                                     strip_accents='unicode',
                                                                     preprocessor=clean_c6)]),
                                    MultinomialNB(),
-                                   LabelEncoder())
+                                   LabelEncoder()),
+        'bcluster_word_metaoptimize':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'brown-rcv1.clean.tokenized-CoNLL03.txt-c3200-freq1.txt')),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_word_wiki8_1024':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'wiki8-c1024')),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_word_wiki8_2048':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'wiki8-c2048')),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_c4_wiki8_1024':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'wiki8-c4-c1024'),
+                                                preprocessor=clean_c4),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_c4_wiki8_2048':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'wiki8-c4-c2048'),
+                                                preprocessor=clean_c4),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_c5_wiki8_1024':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'wiki8-c5-c1024'),
+                                                preprocessor=clean_c5),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_c5_wiki8_2048':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'wiki8-c5-c2048'),
+                                                preprocessor=clean_c5),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_c6_wiki8_1024':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'wiki8-c6-c1024'),
+                                                preprocessor=clean_c6),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_c6_wiki8_2048':
+            TextPipeline(BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                             'wiki8-c6-c2048'),
+                                                preprocessor=clean_c6),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_mixed_wiki8_1024':
+            TextPipeline(MultiVectorizer([BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                                              'wiki8-c4-c1024'),
+                                                                 preprocessor=clean_c4),
+                                          BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                                              'wiki8-c5-c1024'),
+                                                                 preprocessor=clean_c5),
+                                          BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                                              'wiki8-c6-c1024'),
+                                                                 preprocessor=clean_c6)]),
+                         MultinomialNB(),
+                         LabelEncoder()),
+        'bcluster_mixed_wiki8_2048':
+            TextPipeline(MultiVectorizer([BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                                              'wiki8-c4-c2048'),
+                                                                 preprocessor=clean_c4),
+                                          BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                                              'wiki8-c5-c2048'),
+                                                                 preprocessor=clean_c5),
+                                          BrownClusterVectorizer(os.path.join(brown_cluster_path,
+                                                                              'wiki8-c6-c2048'),
+                                                                 preprocessor=clean_c6)]),
+                         MultinomialNB(),
+                         LabelEncoder())
     }
 
 

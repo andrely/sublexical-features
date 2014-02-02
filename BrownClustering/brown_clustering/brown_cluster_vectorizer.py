@@ -16,14 +16,14 @@ def _build_vocabulary(cluster_index):
 
 
 class BrownClusterVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
-    def __init__(self, cluster_fn, prefix_size=16):
+    def __init__(self, cluster_fn, prefix_size=16, preprocessor=None):
         self.cluster_fn = cluster_fn
 
         self.cluster_index = None
         self.vocabulary_ = None
 
         self.analyzer = 'word'
-        self.preprocessor = None
+        self.preprocessor = preprocessor
         self.strip_accents = 'unicode'
         self.lowercase = True
         self.stop_words = None
