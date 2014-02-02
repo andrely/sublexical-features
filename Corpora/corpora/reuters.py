@@ -120,12 +120,14 @@ class ArticleSequence(Sequence):
 
 
 class TopicSequence(Sequence):
-    def __init__(self, corpus_path):
+    def __init__(self, corpus_path, include_topics=None):
         if not _cache_initialized():
             logging.info("Caching Reuters corpus")
             _set_cache(_initialize_cache(corpus_path))
         else:
             logging.info("Using cached Reuters corpus")
+
+        self.include_topics = include_topics
 
     def __len__(self):
         return len(_get_cache()['index'])
@@ -133,5 +135,9 @@ class TopicSequence(Sequence):
     def __getitem__(self, index):
         cache = _get_cache()
         entry = cache['store'][cache['index'][index]]
+        topics = entry[1]
 
-        return entry[1]
+        if self.include_topics:
+            topics = [t for t in topics if t in self.include_topics]
+
+        return topics
