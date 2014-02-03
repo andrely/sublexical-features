@@ -102,12 +102,14 @@ def _cache_initialized():
     return _corpus_cache is not None
 
 class ArticleSequence(Sequence):
-    def __init__(self, corpus_path):
+    def __init__(self, corpus_path, preprocessor=None):
         if not _cache_initialized():
             logging.info("Caching Reuters corpus")
             _set_cache(_initialize_cache(corpus_path))
         else:
             logging.info("Using cached Reuters corpus")
+
+        self.preprocessor = preprocessor
 
     def __len__(self):
         return len(_get_cache()['index'])
@@ -116,7 +118,12 @@ class ArticleSequence(Sequence):
         cache = _get_cache()
         entry = cache['store'][cache['index'][index]]
 
-        return entry[0]
+        article = entry[0]
+
+        if self.preprocessor:
+            article = self.preprocessor(article)
+
+        return article
 
 
 class TopicSequence(Sequence):
