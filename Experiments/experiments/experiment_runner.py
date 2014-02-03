@@ -1,11 +1,13 @@
 from collections import Sequence
 import os
 
+from gensim.models import Word2Vec
+
 from scipy import sparse
-from numpy import mean, std
-from sklearn.base import BaseEstimator, clone
+from numpy import mean, std, zeros
+from sklearn.base import BaseEstimator, clone, TransformerMixin
 from sklearn.cross_validation import cross_val_score, KFold
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, VectorizerMixin
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder
@@ -14,32 +16,6 @@ from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
 
 from corpora.newsgroups import ArticleSequence, GroupSequence
 from experiments.preprocessing import mahoney_clean, sublexicalize
-
-
-class MahoneyCorpus(object):
-    """Iterate over sentences from the "text8" corpus, unzipped from http://mattmahoney.net/dc/text8.zip ."""
-    def __init__(self, fname, max_sent_length=1000):
-        self.fname = fname
-        self.max_sent_length = max_sent_length
-
-    def __iter__(self):
-        # the entire corpus is one gigantic line -- there are no sentence marks at all
-        # so just split the sequence of tokens arbitrarily: 1 sentence = 1000 tokens
-        sentence, rest, max_sentence_length = [], '', self.max_sent_length
-        with open(self.fname) as fin:
-            while True:
-                text = rest + fin.read(8192)  # avoid loading the entire file (=1 line) into RAM
-                if text == rest:  # EOF
-                    sentence.extend(rest.split()) # return the last chunk of words, too (may be shorter/longer)
-                    if sentence:
-                        yield sentence
-                    break
-                last_token = text.rfind(' ')  # the last token may have been split in two... keep it for the next iteration
-                words, rest = (text[:last_token].split(), text[last_token:].strip()) if last_token >= 0 else ([], text)
-                sentence.extend(words)
-                while len(sentence) >= max_sentence_length:
-                    yield sentence[:max_sentence_length]
-                    sentence = sentence[max_sentence_length:]
 
 
 class FilteredSequence(Sequence):
@@ -85,6 +61,47 @@ class MultiVectorizer(BaseEstimator):
         x = [vect.transform(raw_documents) for vect in self.vectorizers]
 
         x = sparse.hstack(x)
+
+        return x
+
+
+class Word2VecVectorizer(BaseEstimator, TransformerMixin, VectorizerMixin):
+    def __init__(self, w2v_fn, preprocessor=None):
+        self.w2v_fn = w2v_fn
+
+        self.model = None
+
+        self.analyzer = 'word'
+        self.preprocessor = preprocessor
+        self.strip_accents = 'unicode'
+        self.lowercase = True
+        self.stop_words = None
+        self.tokenizer = None
+        self.token_pattern = r"(?u)\b\w\w+\b"
+        self.input = None
+        self.ngram_range = (1, 1)
+        self.encoding = 'utf-8'
+        self.decode_error = 'strict'
+
+        self.analyzer_func = None
+
+    def fit(self, x, y=None):
+        self.analyzer_func = self.build_analyzer()
+
+        self.model = Word2Vec.load(self.w2v_fn)
+
+        return self
+
+    def transform(self, raw_documents, y=None):
+        p = self.model.layer1_size
+        n = len(raw_documents)
+
+        x = zeros((n, p))
+
+        for row, doc in enumerate(raw_documents):
+            for token in self.analyzer_func(doc):
+                if token in self.model:
+                    x[row,:] += self.model[token]
 
         return x
 
