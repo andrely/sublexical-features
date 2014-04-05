@@ -2,12 +2,11 @@ from collections import Counter
 
 from sklearn.cross_validation import cross_val_score, KFold
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.multiclass import OneVsRestClassifier
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import LabelBinarizer
 
 from corpora.reuters import TopicSequence, corpus_path, ArticleSequence
+from experiments.experiment_runner import TopicPipeline
+from experiments.preprocessing import mahoney_clean
 
 
 def corpus_statistics(corpus_path):
@@ -40,15 +39,14 @@ topics_by_freq = [u'earn', u'acq', u'money-fx', u'grain', u'crude', u'trade', u'
 
 if __name__ == '__main__':
     topics = TopicSequence(corpus_path, include_topics=topics_by_freq[0:10])
-    articles = ArticleSequence(corpus_path)
+    articles = ArticleSequence(corpus_path, preprocessor=mahoney_clean)
 
-    bin = LabelBinarizer()
-    y = bin.fit_transform(topics)
+    model = TopicPipeline(CountVectorizer(max_features=1000,
+                                          decode_error='ignore',
+                                          strip_accents='unicode',
+                                          preprocessor=mahoney_clean), MultinomialNB())
 
-    model = Pipeline([('vect', CountVectorizer(max_features=1000, decode_error='replace', strip_accents='unicode')),
-                      ('nb', OneVsRestClassifier(MultinomialNB()))])
-
-    scores = cross_val_score(model, articles, y, verbose=2, scoring='f1',
+    scores = cross_val_score(model, articles, topics, verbose=2, scoring='f1',
                              cv=KFold(len(articles), n_folds=10, shuffle=True))
 
     print scores

@@ -12,5 +12,5 @@ setup(
     author='',
     author_email='',
     description='',
-    test_suite='nose.collector'
+    test_suite='nose.collector', requires=['gensim']
 )

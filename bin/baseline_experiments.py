@@ -18,17 +18,17 @@ if __name__ == '__main__':
     argparser.add_argument('-i', '--experiment-id')
     argparser.add_argument('-p', '--processors', type=int)
     argparser.add_argument('-c', '--corpus-path')
-    argparser.add_argument('-b', '--brown-cluster-path')
+    argparser.add_argument('-w', '--word-representation-path')
     args = argparser.parse_args()
 
-    brown_cluster_path = os.getcwd()
+    word_repr_path = os.getcwd()
 
-    if args.brown_cluster_path:
-        brown_cluster_path = args.brown_cluster_path
+    if args.word_representation_path:
+        word_repr_path = args.word_representation_path
 
-    logging.info("Using Brown clusters in %s" % brown_cluster_path)
+    logging.info("Using word representations in %s" % word_repr_path)
 
-    pipelines = baseline_pipelines(brown_cluster_path=brown_cluster_path)
+    pipelines = baseline_pipelines(word_repr_path=word_repr_path)
 
     if args.experiment_id:
         experiments = args.experiment_id.split(',')

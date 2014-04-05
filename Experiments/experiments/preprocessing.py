@@ -24,11 +24,15 @@ def mahoney_clean(text_str):
     return text_str
 
 
-def sublexicalize(text_str, order=3):
+def sublexicalize(text_str, order=3, join=True):
     text_str = re.sub(' ', '_', text_str)
     char_ngrams = ngrams(text_str, order)
+    tokens = [''.join(token) for token in char_ngrams]
 
-    return ' '.join([''.join(token) for token in char_ngrams])
+    if join:
+        return ' '.join(tokens)
+    else:
+        return tokens
 
 
 def make_preprocessor(order=None):

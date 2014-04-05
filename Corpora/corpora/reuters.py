@@ -1,4 +1,4 @@
-from collections import Sequence
+from collections import Sequence, Iterable
 import csv
 from glob import glob
 import logging
@@ -115,15 +115,22 @@ class ArticleSequence(Sequence):
         return len(_get_cache()['index'])
 
     def __getitem__(self, index):
-        cache = _get_cache()
-        entry = cache['store'][cache['index'][index]]
+        if isinstance(index, slice):
+            return [self[i] for i in xrange(*index.indices(len(self)))]
+        elif isinstance(index, Iterable):
+            return [self[i] for i in index]
+        elif isinstance(index, int):
+            cache = _get_cache()
+            entry = cache['store'][cache['index'][index]]
 
-        article = entry[0]
+            article = entry[0]
 
-        if self.preprocessor:
-            article = self.preprocessor(article)
+            if self.preprocessor:
+                article = self.preprocessor(article)
 
-        return article
+            return article
+        else:
+            raise TypeError
 
 
 class TopicSequence(Sequence):
@@ -140,11 +147,19 @@ class TopicSequence(Sequence):
         return len(_get_cache()['index'])
 
     def __getitem__(self, index):
-        cache = _get_cache()
-        entry = cache['store'][cache['index'][index]]
-        topics = entry[1]
+        if isinstance(index, slice):
+            return [self[i] for i in xrange(*index.indices(len(self)))]
+        elif isinstance(index, Iterable):
+            return [self[i] for i in index]
+        elif isinstance(index, int):
+            cache = _get_cache()
+            entry = cache['store'][cache['index'][index]]
+            topics = entry[1]
 
-        if self.include_topics:
-            topics = [t for t in topics if t in self.include_topics]
+            if self.include_topics:
+                topics = [t for t in topics if t in self.include_topics]
 
-        return topics
+            return topics
+        else:
+            raise TypeError
+

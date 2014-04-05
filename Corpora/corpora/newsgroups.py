@@ -1,5 +1,5 @@
 from abc import ABCMeta
-from collections import Sequence
+from collections import Sequence, Iterable
 from glob import glob
 import os
 
@@ -115,32 +115,32 @@ class NewsgroupsSequence(Sequence):
         else:
             return article_count
 
+    def _get_index(self, index):
+        raise NotImplementedError
 
-def check_index(f):
-    def _check_index(self, index):
-        if type(self.indices) in [ndarray, list]:
-            index = self.indices[index]
-
-        return f(self, index)
-
-    return _check_index
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self._get_index(i) for i in xrange(*index.indices(len(self)))]
+        elif isinstance(index, Iterable):
+            return [self._get_index(i) for i in index]
+        elif isinstance(index, int):
+            return self._get_index(index)
+        else:
+            raise TypeError
 
 
 class GroupSequence(NewsgroupsSequence):
-    @check_index
-    def __getitem__(self, index):
+    def _get_index(self, index):
         return self.article_index[index][1]
 
 
 class ArticleSequence(NewsgroupsSequence):
-
     def __init__(self, corpus_path, indices=None, preprocessor=None):
         super(ArticleSequence, self).__init__(corpus_path, indices=indices)
 
         self.preprocessor = preprocessor
 
-    @check_index
-    def __getitem__(self, index):
+    def _get_index(self, index):
         art_id, group = self.article_index[index]
         body = _get_body_index(self.corpus_path)["%d_%s" % (art_id, group)]
 
@@ -148,3 +148,4 @@ class ArticleSequence(NewsgroupsSequence):
             body = self.preprocessor(body)
 
         return unicode(body, errors='ignore')
+
