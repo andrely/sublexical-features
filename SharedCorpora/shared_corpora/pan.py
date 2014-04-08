@@ -8,12 +8,19 @@ import time
 from lxml import etree
 import psutil
 from sklearn.feature_extraction.text import CountVectorizer
-
-from experiments.experiment_runner import FilteredSequence
+from shared_corpora.sequences import FilteredSequence
 
 
 pan_ap_corpus_path = '/Users/stinky/Work/PAN2013/Author Profiling/pan_author_profiling_training_data'
+pan14_ap_corpus_path = ''
 
+
+pan14_ap_subcorpora = {
+    'blogs': 'pan14-author-profiling-training-corpus-english-blogs-2014-04-03',
+    'reviews': 'pan14-author-profiling-training-corpus-english-reviews-2014-04-03',
+    'socialmedia': 'pan14-author-profiling-training-corpus-english-socialmedia-2014-04-03',
+    'twitter': 'pan14-author-profiling-training-corpus-english-twitter-2014-04-03'
+}
 
 class Timer(object):
     def __init__(self):
@@ -47,6 +54,27 @@ class Timer(object):
             return self._end_time - self._start_time
         else:
             return None
+
+
+def pan14_ap_fns(subcorpora):
+    return glob(os.path.join(pan14_ap_corpus_path, pan14_ap_subcorpora[subcorpora], '*.xml'))
+
+
+def pan14_read_fn(fn):
+    doc = etree.parse(fn)
+
+    for author_elt in doc.findall('.'):
+        if author_elt.tag != 'author':
+            logging.warn('Illegal top level tag %s in %s' % (author_elt.tag, fn))
+            continue
+
+        lang = author_elt.attrib.get('lang')
+        gender = author_elt.attrib.get('gender')
+
+
+        for documents_elt in author_elt.findall('documents'):
+            pass
+
 
 
 def pan_ap_files(corpus_path):

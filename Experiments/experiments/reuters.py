@@ -4,7 +4,7 @@ from sklearn.cross_validation import cross_val_score, KFold
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 
-from corpora.reuters import TopicSequence, corpus_path, ArticleSequence
+from SharedCorpora.reuters import TopicSequence, corpus_path, ArticleSequence
 from experiments.experiment_runner import TopicPipeline
 from experiments.preprocessing import mahoney_clean
 

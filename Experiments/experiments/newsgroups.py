@@ -12,7 +12,7 @@ from sklearn.preprocessing import LabelEncoder
 
 from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
 
-from corpora.newsgroups import ArticleSequence, newsgroups_corpus_path, GroupSequence, article_count
+from SharedCorpora.newsgroups import ArticleSequence, newsgroups_corpus_path, GroupSequence, article_count
 from experiments.experiment_runner import baseline_pipelines, run_experiment
 
 

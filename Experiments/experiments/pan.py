@@ -6,7 +6,7 @@ from sklearn.cross_validation import cross_val_score
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 
-from corpora.pan import PanAPSequence, pan_ap_corpus_path
+from SharedCorpora.pan import PanAPSequence, pan_ap_corpus_path
 from experiments.experiment_runner import FilteredSequence, TopicPipeline
 
 
