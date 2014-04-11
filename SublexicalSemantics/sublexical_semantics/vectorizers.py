@@ -8,6 +8,7 @@ from sklearn.feature_extraction.text import VectorizerMixin
 
 
 
+
 # Simple class to hold Brown cluster assignments read from a model file created by wcluster.
 class ClusterIndex(object):
     def __init__(self, file, prefix_size=16):
@@ -87,7 +88,7 @@ class BrownClusterVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
         self.input = None
         self.ngram_range = (1, 1)
         self.encoding = 'utf-8'
-        self.decode_error = 'strict'
+        self.decode_error = 'ignore'
         self.prefix_size = prefix_size
 
         self.analyzer_func = None
