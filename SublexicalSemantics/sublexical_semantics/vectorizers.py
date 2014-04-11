@@ -1,7 +1,10 @@
 from collections import defaultdict
 import logging
 from operator import itemgetter
+import os
 
+from gensim.models import LsiModel, TfidfModel, Word2Vec
+from numpy import zeros, load
 from scipy.sparse import lil_matrix
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_extraction.text import VectorizerMixin
@@ -115,3 +118,106 @@ class BrownClusterVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
                     x[row, self.vocabulary_[c]] += 1
 
         return x.tocsr()
+
+
+class LsiVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
+    def __init__(self, model_fn, preprocessor=None):
+        self.model_fn = model_fn
+
+        self.model = None
+        self.tfidf = None
+
+        self.analyzer = 'word'
+        self.preprocessor = preprocessor
+        self.strip_accents = 'unicode'
+        self.lowercase = True
+        self.stop_words = None
+        self.tokenizer = None
+        self.token_pattern = r"(?u)\b\w\w+\b"
+        self.input = None
+        self.ngram_range = (1, 1)
+        self.encoding = 'utf-8'
+        self.decode_error = 'ignore'
+
+        self.analyzer_func = None
+
+    def fit(self, raw_documents, y=None):
+        self.analyzer_func = self.build_analyzer()
+
+        self.model = LsiModel.load(self.model_fn)
+
+        if os.path.exists(self.model_fn + '.tfidf'):
+            self.tfidf = TfidfModel.load(self.model_fn + '.tfidf')
+
+        return self
+
+    def transform(self, raw_documents):
+        x = zeros((len(raw_documents), self.model.num_topics))
+
+        for row, doc in enumerate(raw_documents):
+            doc = self.model.id2word.doc2bow(self.analyzer_func(doc))
+
+            if self.tfidf:
+                topics = self.model[self.tfidf[doc]]
+            else:
+                topics = self.model[doc]
+
+            for idx, val in topics:
+                x[row, idx] = val
+
+        return x
+
+
+# Creates document vectors from text based on sublexical Word2Vec log-bilinear models
+# trained with Gensim. Creates average of term representations in the document.
+# Based on CountVectorizer class in SKLearn.
+class Word2VecVectorizer(BaseEstimator, VectorizerMixin, TransformerMixin):
+    def __init__(self, model_fn, preprocessor=None):
+        self.model_fn = model_fn
+
+        self.model = None
+
+        self.analyzer = 'word'
+        self.preprocessor = preprocessor
+        self.strip_accents = 'unicode'
+        self.lowercase = True
+        self.stop_words = None
+        self.tokenizer = None
+        self.token_pattern = r"(?u)\b\w\w+\b"
+        self.input = None
+        self.ngram_range = (1, 1)
+        self.encoding = 'utf-8'
+        self.decode_error = 'ignore'
+
+        self.analyzer_func = None
+
+    # no data needed, this just reads the model
+    def fit(self, raw_documents, y=None):
+        self.analyzer_func = self.build_analyzer()
+
+        self.model = Word2Vec.load(self.model_fn)
+
+        # pick up external data vectors
+        if not hasattr(self.model, 'syn0'):
+            self.model.syn0 = load(self.model_fn + '.syn0.npy')
+
+        if not hasattr(self.model, 'syn1'):
+            self.model.syn0 = load(self.model_fn + '.syn1.npy')
+
+        return self
+
+    def transform(self, raw_documents):
+        x = zeros((len(raw_documents), self.model.layer1_size))
+
+        for row, doc in enumerate(raw_documents):
+            n = 0
+
+            for token in self.analyzer_func(doc):
+                if token in self.model:
+                    x[row, :] += self.model[token]
+                    n += 1
+
+            if n > 0:
+                x[row, :] = x[row, :] / n
+
+        return x
