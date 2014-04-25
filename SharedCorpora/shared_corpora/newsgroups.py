@@ -43,6 +43,17 @@ topics = ['alt.atheism', 'comp.graphics', 'comp.os.ms-windows.misc', 'comp.sys.i
           'talk.politics.guns', 'talk.politics.mideast', 'talk.politics.misc', 'talk.religion.misc']
 
 
+def extract_field(field, data):
+    if field == 'body':
+        return data[data.find('\n\n'):data.find('\n-- \n')]
+    else:
+        headers = data[:data.find('\n\n')]
+        items = [h for h in headers.split('\n') if h.lower().startswith(field + ':')]
+        items = [h[len(field)+1:].strip() for h in items]
+
+        return '\n'.join(items)
+
+
 def parse_fn(fn):
     with open(fn) as f:
         data = f.read()
@@ -51,19 +62,27 @@ def parse_fn(fn):
     return body
 
 
-def parse_articles(corpus_path, include_body=True):
+def parse_article(fn, group, fields):
+    article = {'id': int(os.path.basename(fn)),
+               'group': group}
+    if fields:
+        with open(fn) as f:
+            data = f.read()
+
+        for field in fields:
+            article[field] = extract_field(field, data)
+    return article
+
+
+def parse_articles(corpus_path, fields=None):
+    if not fields:
+        fields = ['body', 'subject']
+
     for path in glob(os.path.join(corpus_path, '*')):
         group = os.path.basename(path)
 
         for fn in glob(os.path.join(path, '*')):
-            if include_body:
-                body = parse_fn(fn)
-            else:
-                body = None
-
-            yield {'id': int(os.path.basename(fn)),
-                   'group': group,
-                   'body': body}
+            yield parse_article(fn, group, fields)
 
 
 def _get_article_index(corpus_path):
@@ -101,13 +120,16 @@ def _get_body_index(corpus_path):
 
     return _corpus_body_cache
 
+
+# not usable
 class NewsgroupsSequence(Sequence):
     __metaclass__ = ABCMeta
 
-    def __init__(self, corpus_path, indices=None):
+    def __init__(self, corpus_path, indices=None, fields=None):
         self.article_index = _get_article_index(corpus_path)
         self.corpus_path = corpus_path
         self.indices = indices
+        self.fields = fields
 
     def __len__(self):
         if type(self.indices) in [ndarray, list]:
@@ -131,11 +153,11 @@ class NewsgroupsSequence(Sequence):
 
 class GroupSequence(NewsgroupsSequence):
     def _get_index(self, index):
-        return self.article_index[index][1]
+        return self.article_index[index]['group']
 
 
 class ArticleSequence(NewsgroupsSequence):
-    def __init__(self, corpus_path, indices=None, preprocessor=None):
+    def __init__(self, corpus_path, indices=None, preprocessor=None, ):
         super(ArticleSequence, self).__init__(corpus_path, indices=indices)
 
         self.preprocessor = preprocessor

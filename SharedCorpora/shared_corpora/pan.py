@@ -16,10 +16,10 @@ pan14_ap_corpus_path = ''
 
 
 pan14_ap_subcorpora = {
-    'blogs': 'pan14-author-profiling-training-corpus-english-blogs-2014-04-03',
-    'reviews': 'pan14-author-profiling-training-corpus-english-reviews-2014-04-03',
-    'socialmedia': 'pan14-author-profiling-training-corpus-english-socialmedia-2014-04-03',
-    'twitter': 'pan14-author-profiling-training-corpus-english-twitter-2014-04-03'
+    'blogs': 'pan14-author-profiling-training-corpus-english-blogs-2014-04-16',
+    'reviews': 'pan14-author-profiling-training-corpus-english-reviews-2014-04-16',
+    'socialmedia': 'pan14-author-profiling-training-corpus-english-socialmedia-2014-04-16',
+    'twitter': 'pan14-author-profiling-training-corpus-english-twitter-2014-04-16'
 }
 
 class Timer(object):
@@ -60,7 +60,27 @@ def pan14_ap_fns(subcorpora):
     return glob(os.path.join(pan14_ap_corpus_path, pan14_ap_subcorpora[subcorpora], '*.xml'))
 
 
+def pan14_ap_truth_fn(subcorpora):
+    return os.path.join(pan14_ap_corpus_path, pan14_ap_subcorpora[subcorpora], 'truth.txt')
+
+
+def pan14_read_truth_file(f):
+    truth_map = {}
+
+    for line_num, line in enumerate(f):
+        author_id, gender, age = line.strip().split(':::')
+
+        if truth_map.has_key(author_id):
+            logging.warn("Duplicate author id %s in line %d" % (author_id, line_num))
+
+        truth_map[author_id] = gender, age
+
+    return truth_map
+
+
 def pan14_read_fn(fn):
+    author = {'id': os.path.splitext(os.path.basename(fn))[0]}
+
     doc = etree.parse(fn)
 
     for author_elt in doc.findall('.'):
@@ -68,13 +88,26 @@ def pan14_read_fn(fn):
             logging.warn('Illegal top level tag %s in %s' % (author_elt.tag, fn))
             continue
 
-        lang = author_elt.attrib.get('lang')
-        gender = author_elt.attrib.get('gender')
+        author.update(author_elt.attrib)
 
+        documents = {}
 
         for documents_elt in author_elt.findall('documents'):
-            pass
+            num_docs = int(documents_elt.attrib.get('count', 0))
 
+            if num_docs != len(documents_elt.findall('document')):
+                logging.warn("Inconsistent document count for author %s" % author_id)
+
+            for document_elt in documents_elt.findall('document'):
+                d_id = document_elt.attrib.get('id')
+                if documents.has_key(d_id):
+                    logging.warn("Duplicate document id %s for author %s" % (d_id, author['id']))
+
+                documents[d_id] = document_elt.text, document_elt.attrib.get('url')
+
+        author['documents'] = documents
+
+        return author
 
 
 def pan_ap_files(corpus_path):
