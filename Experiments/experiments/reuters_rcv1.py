@@ -20,6 +20,7 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-c", "--corpus-path")
     parser.add_option("-p", "--processors", type="int", default=1)
+    parser.add_option("-m", "--max-features", type="int", default=2000)
 
     opts, args = parser.parse_args()
 
@@ -30,9 +31,11 @@ if __name__ == '__main__':
         corpus_path = opts.corpus_path
 
     num_proc = opts.processors
+    max_features = opts.max_features
 
     logging.info("Using corpus path %s" % corpus_path)
     logging.info("Using %d processors" % num_proc)
+    logging.info("Using max %d features" % max_features)
 
     texts = []
     target = []
