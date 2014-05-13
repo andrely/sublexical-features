@@ -1,9 +1,10 @@
 import logging
+from math import ceil
 from optparse import OptionParser
 import sys
 
-from numpy import mean, std
-from sklearn.cross_validation import train_test_split, cross_val_score, KFold
+from numpy import mean, std, vstack
+from sklearn.externals.joblib import Parallel, delayed
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import f1_score
 from sklearn.multiclass import OneVsRestClassifier
@@ -12,6 +13,23 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelBinarizer
 
 from shared_corpora.reuters_rcv1 import newsitem_gen, TOP5_TOPICS
+
+
+def do_fold(fold, num_folds, texts, y, num_docs):
+    logging.info("Evaluating fold %d" % fold)
+    low = int(ceil((float(fold) / num_folds) * num_docs))
+    high = int(ceil((float(fold + 1) / num_folds) * (num_docs + 1)))
+    texts_train = texts[0:low] + texts[high:]
+    y_train = vstack((y[0:low], y[high:]))
+    texts_test = texts[low:high]
+    y_test = y[low:high]
+    model = Pipeline([('vect', TfidfVectorizer(decode_error='ignore', strip_accents='unicode',
+                                               max_df=0.5, min_df=5, sublinear_tf=True)),
+                      ('nb', OneVsRestClassifier(MultinomialNB()))])
+    model.fit(texts_train, y_train)
+    pred = model.predict(texts_test)
+
+    return f1_score(y_test, pred)
 
 
 if __name__ == '__main__':
@@ -41,6 +59,7 @@ if __name__ == '__main__':
     target = []
 
     topics = set(TOP5_TOPICS)
+    num_folds = 10
 
     doc_count = 0
 
@@ -62,15 +81,16 @@ if __name__ == '__main__':
     binarizer = LabelBinarizer()
     y = binarizer.fit_transform(target)
 
-    logging.info("Creating train/test split")
-    texts_train, texts_test, y_train, y_test = train_test_split(texts, y, test_size=0.2)
+    split = int(doc_count*0.8)
 
-    logging.info("Running 10-fold cross validation")
-    model = Pipeline([('vect', TfidfVectorizer(decode_error='ignore', strip_accents='unicode',
-                                               max_df=0.5, min_df=5, sublinear_tf=True)),
-                      ('nb', OneVsRestClassifier(MultinomialNB()))])
-    cv_scores = cross_val_score(model, texts_train, y_train, n_jobs=num_proc, cv=KFold(len(texts_train), n_folds=10),
-                                verbose=1, scoring='f1')
+    logging.info("Creating train/test split")
+    texts_train = texts[0:split]
+    texts_test = texts[split:]
+    y_train = y[0:split]
+    y_test = y[split:]
+
+    parallel = Parallel(n_jobs=3, verbose=1, pre_dispatch='2*n_jobs')
+    cv_scores = parallel(delayed(do_fold)(i, num_folds, texts_train, y_train, split) for i in range(num_folds))
 
     print "10-fold cv score: %.04f +/- %.04f" % (mean(cv_scores), std(cv_scores))
 
