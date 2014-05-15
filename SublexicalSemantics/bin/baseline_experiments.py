@@ -8,7 +8,7 @@ sys.path.append(os.path.join(cur_path, '..', 'Corpora'))
 sys.path.append(os.path.join(cur_path, '..', 'Experiments'))
 sys.path.append(os.path.join(cur_path, '..', 'BrownClustering'))
 
-from experiments.experiment_runner import run_experiment, baseline_pipelines
+from experiment_support.experiment_runner import run_experiment, baseline_pipelines
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 import unittest
 
-from experiments.preprocessing import mahoney_clean, sublexicalize
+from experiment_support.preprocessing import mahoney_clean, sublexicalize
 
 
 enwiki_input = "'''Anarchism''' originated as a term of abuse first used against early [[working class]] radicals" + \

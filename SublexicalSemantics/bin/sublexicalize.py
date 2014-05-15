@@ -6,7 +6,7 @@ import sys
 cur_path, _ = os.path.split(__file__)
 sys.path.append(os.path.join(cur_path, '..', 'Experiments'))
 
-from experiments.preprocessing import sublexicalize
+from experiment_support.preprocessing import sublexicalize
 
 BUF_SIZE = 8192
 

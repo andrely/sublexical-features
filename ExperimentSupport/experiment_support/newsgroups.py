@@ -2,7 +2,6 @@ import logging
 import time
 
 from sklearn import clone
-
 from sklearn.cross_validation import KFold
 from sklearn.externals.joblib import Parallel, delayed
 from sklearn.feature_extraction.text import CountVectorizer
@@ -11,9 +10,8 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.preprocessing import LabelEncoder
 
 from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
-
 from SharedCorpora.newsgroups import ArticleSequence, newsgroups_corpus_path, GroupSequence, article_count
-from experiments.experiment_runner import baseline_pipelines, run_experiment
+from experiment_support.experiment_runner import baseline_pipelines, run_experiment
 
 
 def plain_word_counts(corpus_path):
