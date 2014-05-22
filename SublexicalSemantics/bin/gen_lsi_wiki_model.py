@@ -38,6 +38,7 @@ if __name__ == '__main__':
     parser.add_option("-m", "--model-file", help="Output model file.")
     parser.add_option("-t", "--num-topics", default=100, type=int)
     parser.add_option("-s", "--scaling")
+    parser.add_option("-w", "--word-model", default=False, action="store_true")
 
     opts, args = parser.parse_args()
 
@@ -70,7 +71,13 @@ if __name__ == '__main__':
     else:
         raise ValueError("Only tfidf scaling is supported")
 
-    corpus = SublexicalizedCorpus(WikiCorpus(dump_fn, dictionary=Dictionary()), order=order, word_limit=word_limit)
+    word_model = opts.word_model
+
+    if word_model:
+        logging.info("Building word model")
+        corpus = WikiCorpus(dump_fn, dictionary=Dictionary())
+    else:
+        corpus = SublexicalizedCorpus(WikiCorpus(dump_fn, dictionary=Dictionary()), order=order, word_limit=word_limit)
 
     voc = Dictionary(corpus)
     voc.filter_extremes(no_below=cutoff)
