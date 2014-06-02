@@ -3,7 +3,6 @@ import os
 import sys
 
 from gensim.corpora import TextCorpus
-
 from gensim.models import Word2Vec
 from scipy import sparse
 from numpy import mean, std, zeros, array
@@ -18,7 +17,6 @@ from sklearn.preprocessing import LabelEncoder, LabelBinarizer, MinMaxScaler
 from sklearn.svm import LinearSVC
 
 from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
-
 from shared_corpora.newsgroups import ArticleSequence, GroupSequence, newsgroups_corpus_path
 from experiment_support.preprocessing import mahoney_clean, sublexicalize
 
@@ -174,6 +172,35 @@ class SublexicalizedCorpus(TextCorpus):
                 tokens += sublexicalize(mahoney_clean(' '.join(text)), order=o, join=False)
 
             yield tokens
+
+            if self.word_limit and w_count > self.word_limit:
+                break
+
+
+class LimitCorpus(TextCorpus):
+    def __init__(self, base_corpus, word_limit):
+        super(LimitCorpus, self).__init__()
+
+        self.base_corpus = base_corpus
+        self.word_limit = word_limit
+
+    def __len__(self):
+        return len(self.base_corpus)
+
+    def __iter__(self):
+        w_count = 0
+        a_count = 0
+
+        for text in self.base_corpus.get_texts():
+            w_count += len(text)
+            a_count += 1
+
+            sys.stdout.write('.')
+
+            if a_count % 80 == 0:
+                sys.stdout.write('\n')
+
+            yield mahoney_clean(' '.join(text))
 
             if self.word_limit and w_count > self.word_limit:
                 break

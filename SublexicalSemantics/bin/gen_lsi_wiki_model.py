@@ -12,7 +12,7 @@ cur_path, _ = os.path.split(__file__)
 # sys.path.append(os.path.join(cur_path, '..', '..', 'Experiments'))
 sys.path.append(os.path.join(cur_path, '..', '..', 'BrownClustering'))
 
-from experiment_support.experiment_runner import SublexicalizedCorpus
+from experiment_support.experiment_runner import SublexicalizedCorpus, LimitCorpus
 
 
 def parse_ngram_order(arg_str):
@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
     if word_model:
         logging.info("Building word model")
-        corpus = WikiCorpus(dump_fn, dictionary=Dictionary())
+        corpus = LimitCorpus(WikiCorpus(dump_fn, dictionary=Dictionary()), word_limit)
     else:
         corpus = SublexicalizedCorpus(WikiCorpus(dump_fn, dictionary=Dictionary()), order=order, word_limit=word_limit)
 
