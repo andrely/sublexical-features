@@ -11,7 +11,7 @@ sys.path.append(os.path.join(cur_path, '..', 'Corpora'))
 sys.path.append(os.path.join(cur_path, '..', 'Experiments'))
 sys.path.append(os.path.join(cur_path, '..', 'BrownClustering'))
 
-from experiments.experiment_runner import FilteredSequence
+from experiment_support.experiment_runner import FilteredSequence
 from SharedCorpora.pan import PanAPSequence, pan_ap_corpus_path, build_pan_ap_db
 
 if __name__ == '__main__':

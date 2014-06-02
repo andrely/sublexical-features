@@ -5,8 +5,8 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 
 from SharedCorpora.reuters import TopicSequence, corpus_path, ArticleSequence
-from experiments.experiment_runner import TopicPipeline
-from experiments.preprocessing import mahoney_clean
+from experiment_support.experiment_runner import TopicPipeline
+from experiment_support.preprocessing import mahoney_clean
 
 
 def corpus_statistics(corpus_path):

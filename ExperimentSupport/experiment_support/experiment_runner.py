@@ -1,4 +1,3 @@
-from collections import Sequence, Iterable
 import logging
 import os
 import sys
@@ -21,7 +20,14 @@ from sklearn.svm import LinearSVC
 from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
 
 from shared_corpora.newsgroups import ArticleSequence, GroupSequence, newsgroups_corpus_path
-from experiments.preprocessing import mahoney_clean, sublexicalize
+from experiment_support.preprocessing import mahoney_clean, sublexicalize
+
+
+def inclusive_range(a, b=None):
+    if not b:
+        return range(a + 1)
+    else:
+        return range(a, b + 1)
 
 
 class TopicPipeline(BaseEstimator):
@@ -138,8 +144,12 @@ class SublexicalizedCorpus(TextCorpus):
     def __init__(self, base_corpus, order=3, word_limit=None):
         super(SublexicalizedCorpus, self).__init__()
 
+        if isinstance(order, (list, tuple)):
+            self.order = inclusive_range(*order)
+        else:
+            self.order = [3]
+
         self.base_corpus = base_corpus
-        self.order = order
         self.word_limit = word_limit
 
     def __len__(self):
@@ -158,7 +168,11 @@ class SublexicalizedCorpus(TextCorpus):
             if a_count % 80 == 0:
                 sys.stdout.write('\n')
 
-            tokens = sublexicalize(mahoney_clean(' '.join(text)), order=self.order, join=False)
+            tokens = []
+
+            for o in self.order:
+                tokens += sublexicalize(mahoney_clean(' '.join(text)), order=o, join=False)
+
             yield tokens
 
             if self.word_limit and w_count > self.word_limit:

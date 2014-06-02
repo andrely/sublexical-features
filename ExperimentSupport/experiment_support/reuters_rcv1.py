@@ -1,10 +1,15 @@
+from itertools import izip
 import logging
+from math import ceil
+from operator import itemgetter
 from optparse import OptionParser
 import sys
 
-from numpy import mean, std
-from sklearn.cross_validation import train_test_split, cross_val_score, KFold
+from numpy import mean, vstack
+from sklearn import clone
+from sklearn.externals.joblib import Parallel, delayed
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.grid_search import ParameterGrid
 from sklearn.metrics import f1_score
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.naive_bayes import MultinomialNB
@@ -12,6 +17,51 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelBinarizer
 
 from shared_corpora.reuters_rcv1 import newsitem_gen, TOP5_TOPICS
+
+
+def fit_and_score_fold(fold, model, X, y, params=None):
+    low, high = fold
+    X_train = X[0:low] + X[high:]
+    y_train = vstack((y[0:low], y[high:]))
+    X_test = X[low:high]
+    y_test = y[low:high]
+
+    _model = clone(model)
+
+    if params:
+        _model.set_params(**params)
+
+    _model.fit(X_train, y_train)
+    pred = _model.predict(X_test)
+
+    return f1_score(y_test, pred)
+
+
+def text_cross_val_score(model, X, y, folds):
+    parallel = Parallel(n_jobs=3, verbose=1, pre_dispatch='2*n_jobs')
+    cv_scores = parallel(delayed(fit_and_score_fold)(fold, model, X, y) for fold in folds)
+
+    return cv_scores
+
+
+def text_grid_search_cv(model, X, y, folds, params):
+    parallel = Parallel(n_jobs=3, verbose=1, pre_dispatch='2*n_jobs')
+    grid_scores = parallel(delayed(fit_and_score_fold)(fold, model, X, y, params=p) for fold in folds for p in params)
+
+    n_folds = len(folds)
+    n_params = len(params)
+
+    grouped_scores = [grid_scores[i*n_folds:(i+1)*n_folds] for i in xrange(n_params)]
+
+    results = sorted([(p, mean(scores), scores) for scores, p in izip(grouped_scores, params)],
+                     key=itemgetter(1), reverse=True)
+
+    return results[0]
+
+
+def make_text_folds(n_docs, n_folds):
+    return [(int(ceil((float(fold) / num_folds) * n_docs)),
+             int(ceil((float(fold + 1) / num_folds) * n_docs)) - 1) for fold in range(n_folds)]
 
 
 if __name__ == '__main__':
@@ -41,6 +91,7 @@ if __name__ == '__main__':
     target = []
 
     topics = set(TOP5_TOPICS)
+    num_folds = 10
 
     doc_count = 0
 
@@ -55,6 +106,7 @@ if __name__ == '__main__':
 
             if doc_count % 10000 == 0:
                 logging.info("Added %d documents..." % doc_count)
+                break
 
     logging.info("Using %d documents." % doc_count)
 
@@ -62,17 +114,26 @@ if __name__ == '__main__':
     binarizer = LabelBinarizer()
     y = binarizer.fit_transform(target)
 
-    logging.info("Creating train/test split")
-    texts_train, texts_test, y_train, y_test = train_test_split(texts, y, test_size=0.2)
+    split = int(doc_count*0.8)
 
-    logging.info("Running 10-fold cross validation")
+    logging.info("Creating train/test split")
+    texts_train = texts[0:split]
+    texts_test = texts[split:]
+    y_train = y[0:split]
+    y_test = y[split:]
+
+    folds = make_text_folds(split, num_folds)
+
     model = Pipeline([('vect', TfidfVectorizer(decode_error='ignore', strip_accents='unicode',
                                                max_df=0.5, min_df=5, sublinear_tf=True)),
                       ('nb', OneVsRestClassifier(MultinomialNB()))])
-    cv_scores = cross_val_score(model, texts_train, y_train, n_jobs=num_proc, cv=KFold(len(texts_train), n_folds=10),
-                                verbose=1, scoring='f1')
 
-    print "10-fold cv score: %.04f +/- %.04f" % (mean(cv_scores), std(cv_scores))
+    # cv_scores = text_cross_val_score(model, texts_train, y_train, folds)
+    # print "10-fold cv score: %.04f +/- %.04f" % (mean(cv_scores), std(cv_scores))
+
+    grid = ParameterGrid({'vect__max_features': [1000, 2000]})
+
+    print text_grid_search_cv(model, texts_train, y_train, folds, grid)
 
     logging.info("Evaluating model")
     model = Pipeline([('vect', TfidfVectorizer(decode_error='ignore', strip_accents='unicode',
