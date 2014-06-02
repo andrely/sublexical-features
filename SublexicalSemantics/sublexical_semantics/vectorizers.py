@@ -5,11 +5,38 @@ import os
 
 from gensim.models import LsiModel, TfidfModel, Word2Vec
 from numpy import zeros, load
+from scipy import sparse
 from scipy.sparse import lil_matrix
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_extraction.text import VectorizerMixin
 
 
+class MultiVectorizer(BaseEstimator):
+    def __init__(self, vectorizers=None):
+        if not vectorizers:
+            raise ValueError
+
+        self.vectorizers = vectorizers
+
+    def fit_transform(self, raw_documents, y=None):
+        x = [vect.fit_transform(raw_documents, y) for vect in self.vectorizers]
+
+        x = sparse.hstack(x)
+
+        return x
+
+    def fit(self, raw_documents, y=None):
+        for vect in self.vectorizers:
+            vect.fit(raw_documents, y)
+
+        return self
+
+    def transform(self, raw_documents):
+        x = [vect.transform(raw_documents) for vect in self.vectorizers]
+
+        x = sparse.hstack(x)
+
+        return x
 
 
 # Simple class to hold Brown cluster assignments read from a model file created by wcluster.
