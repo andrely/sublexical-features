@@ -200,7 +200,7 @@ class LimitCorpus(TextCorpus):
             if a_count % 80 == 0:
                 sys.stdout.write('\n')
 
-            yield mahoney_clean(' '.join(text))
+            yield mahoney_clean(' '.join(text)).split()
 
             if self.word_limit and w_count > self.word_limit:
                 break
