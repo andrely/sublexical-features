@@ -52,3 +52,15 @@ def make_preprocessor(order=None):
         return lambda text_str: sublexicalize(mahoney_clean(text_str), order=order)
     else:
         return lambda text_str: mahoney_clean(text_str)
+
+
+def clean_c35(text_str):
+    return ' '.join([sublexicalize(mahoney_clean(text_str), order=o) for o in [3, 4, 5]])
+
+
+def clean_c45(text_str):
+    return ' '.join([sublexicalize(mahoney_clean(text_str), order=o) for o in [4, 5]])
+
+
+def clean_c36(text_str):
+    return ' '.join([sublexicalize(mahoney_clean(text_str), order=o) for o in [3, 4, 5, 6]])
