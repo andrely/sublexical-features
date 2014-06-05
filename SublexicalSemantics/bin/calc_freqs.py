@@ -56,5 +56,9 @@ if __name__ == '__main__':
     print "###TOTAL###\t%d\t%d" % (tf.N(), n_docs)
 
     for token, freq in tf.items():
+        if freq < cutoff:
+            break
+
         print "%s\t%d\t%d\t%.6f" % (token, freq, df[token], math.log(float(n_docs)/df[token]))
+
 
