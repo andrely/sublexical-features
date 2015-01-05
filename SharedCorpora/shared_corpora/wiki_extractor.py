@@ -1,8 +1,8 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Hacked up to create an iterator
 
-# -*- coding: utf-8 -*-
 #
 # =============================================================================
 #  Version: 2.6 (Oct 14, 2013)
