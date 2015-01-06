@@ -16,7 +16,7 @@ def filtered_tokens(tokens):
 def initial_clusters(tokens, n_clusters):
     dist = FreqDist(tokens)
 
-    return dist.keys()[:n_clusters]
+    return [k for k, _ in dist.most_common(n_clusters)]
 
 
 def ent_log(x):
