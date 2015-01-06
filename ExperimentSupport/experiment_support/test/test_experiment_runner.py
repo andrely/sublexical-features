@@ -1,6 +1,6 @@
 import unittest
 
-from experiment_support.experiment_runner import FilteredSequence
+from shared_corpora.sequences import FilteredSequence
 
 
 class FilteredSequenceTestCase(unittest.TestCase):

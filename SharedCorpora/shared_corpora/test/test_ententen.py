@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from ententen import clean_line
+from shared_corpora.ententen import clean_line
 
 
 class TestEnTenTen(TestCase):
