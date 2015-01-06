@@ -29,5 +29,8 @@ class TestPreprocessing(unittest.TestCase):
         result = sublexicalize("abc def ghi", order=4)
         self.assertEquals(result, "abc_ bc_d c_de _def def_ ef_g f_gh _ghi")
 
+        result = sublexicalize("abc def ghi", order=(3, 4))
+        self.assertEquals(result, "abc bc_ abc_ c_d bc_d _de c_de def _def ef_ def_ f_g ef_g _gh f_gh ghi _ghi")
+
 if __name__ == '__main__':
     unittest.main()
