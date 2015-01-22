@@ -55,7 +55,9 @@ def sublexicalize(text_str, order=3, join=True):
     text_str = RE_SPACE.sub('_', text_str)
 
 
-    ngrams = []
+    shape = sum([len(text_str)-i+1 for i in order])
+    ngrams = [0]*shape
+    insert_idx = 0
 
     # Fill in first "uneven" ngrams inefficiently
 
@@ -71,7 +73,8 @@ def sublexicalize(text_str, order=3, join=True):
         for j in i:
             if j:
                 # noinspection PyUnresolvedReferences
-                ngrams.append(text_str[j[0]:j[1]])
+                ngrams[insert_idx] = text_str[j[0]:j[1]]
+                insert_idx += 1
 
     # generate rest of ngrams fast
 
@@ -79,7 +82,8 @@ def sublexicalize(text_str, order=3, join=True):
 
     for i in xrange(order[-1], n+1):
         for o in order:
-            ngrams.append(text_str[i-o:i])
+            ngrams[insert_idx] = text_str[i-o:i]
+            insert_idx += 1
 
     if join:
         return ' '.join(ngrams)

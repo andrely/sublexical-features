@@ -1,9 +1,13 @@
 import logging
 import os
 import sys
+import multiprocessing
+import time
 
 from gensim.corpora import TextCorpus
+from gensim.corpora.dictionary import Dictionary
 from gensim.models import Word2Vec
+from gensim.utils import chunkize_serial, InputQueue
 from scipy import sparse
 from numpy import mean, std, zeros, array
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -16,9 +20,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, LabelBinarizer, MinMaxScaler
 from sklearn.svm import LinearSVC
 
-from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
 from shared_corpora.newsgroups import ArticleSequence, GroupSequence, newsgroups_corpus_path
 from experiment_support.preprocessing import mahoney_clean, sublexicalize
+from sublexical_semantics.vectorizers import BrownClusterVectorizer
 
 
 def inclusive_range(a, b=None):
@@ -68,6 +72,55 @@ class TopicPipeline(BaseEstimator):
             return f1_score(topics, self.predict(raw_documents))
         else:
             return accuracy_score(topics, self.predict(raw_documents))
+
+
+def chunkize(corpus, chunksize, maxsize=0, as_numpy=False):
+    """
+    Ripped from gensim.utils.
+
+    Since we could be run in a thread from fex. WikiCorpus, we can't run as a daemon process.
+
+    This means processes will be left hanging as it stands. Run from scripts only.
+
+    ---
+
+    Split a stream of values into smaller chunks.
+    Each chunk is of length `chunksize`, except the last one which may be smaller.
+    A once-only input stream (`corpus` from a generator) is ok, chunking is done
+    efficiently via itertools.
+
+    If `maxsize > 1`, don't wait idly in between successive chunk `yields`, but
+    rather keep filling a short queue (of size at most `maxsize`) with forthcoming
+    chunks in advance. This is realized by starting a separate process, and is
+    meant to reduce I/O delays, which can be significant when `corpus` comes
+    from a slow medium (like harddisk).
+
+    If `maxsize==0`, don't fool around with parallelism and simply yield the chunksize
+    via `chunkize_serial()` (no I/O optimizations).
+
+    >>> for chunk in chunkize(range(10), 4): print(chunk)
+    [0, 1, 2, 3]
+    [4, 5, 6, 7]
+    [8, 9]
+
+    """
+    assert chunksize > 0
+
+    if maxsize > 0:
+        q = multiprocessing.Queue(maxsize=maxsize)
+        worker = InputQueue(q, corpus, chunksize, maxsize=maxsize, as_numpy=as_numpy)
+        worker.start()
+        sys.stdout.flush()
+        while True:
+            chunk = [q.get(block=True)]
+            if chunk[0] is None:
+                break
+            yield chunk.pop()
+
+    else:
+        for chunk in chunkize_serial(corpus, chunksize, as_numpy=as_numpy):
+            yield chunk
+
 
 class MultiVectorizer(BaseEstimator):
     def __init__(self, vectorizers=None):
@@ -133,48 +186,76 @@ class Word2VecVectorizer(BaseEstimator, TransformerMixin, VectorizerMixin):
         for row, doc in enumerate(raw_documents):
             for token in self.analyzer_func(doc):
                 if token in self.model:
-                    x[row,:] += self.model[token]
+                    x[row, :] += self.model[token]
 
         return x
 
 
+def process(args):
+    text, clean_func, order = args
+
+    text = ' '.join(text)
+
+    if clean_func:
+        text = clean_func(text)
+
+    return sublexicalize(text, order=order, join=False)
+
+
 class SublexicalizedCorpus(TextCorpus):
-    def __init__(self, base_corpus, order=3, word_limit=None):
-        super(SublexicalizedCorpus, self).__init__()
+    def __init__(self, base_corpus, order=3, word_limit=None, clean_func=mahoney_clean, create_dictionary=True,
+                 n_proc=1):
+        self.order = order
 
-        if isinstance(order, (list, tuple)):
-            self.order = inclusive_range(*order)
-        else:
-            self.order = [3]
-
+        self.clean_func = clean_func
         self.base_corpus = base_corpus
         self.word_limit = word_limit
+        self.n_proc = n_proc
 
-    def __len__(self):
-        return len(self.base_corpus)
+        super(SublexicalizedCorpus, self).__init__()
 
-    def __iter__(self):
-        w_count = 0
+        self.dictionary = Dictionary()
+
+        if create_dictionary:
+            self.dictionary.add_documents(self.get_texts())
+
+    def get_texts(self):
         a_count = 0
+        t_count = 0
 
-        for text in self.base_corpus.get_texts():
-            w_count += len(text)
-            a_count += 1
+        texts = ((text, self.clean_func, self.order) for text in self.base_corpus.get_texts())
 
-            sys.stdout.write('.')
+        pool = multiprocessing.Pool(self.n_proc)
 
-            if a_count % 80 == 0:
-                sys.stdout.write('\n')
+        start = time.clock()
+        prev = start
 
-            tokens = []
+        for group in chunkize(texts, chunksize=10 * self.n_proc, maxsize=100):
+            for tokens in pool.imap_unordered(process, group):
+                a_count += 1
 
-            for o in self.order:
-                tokens += sublexicalize(mahoney_clean(' '.join(text)), order=o, join=False)
+                cur = time.clock()
 
-            yield tokens
+                if cur - prev > 60:
+                    logging.info("Sublexicalized %d in %d seconds, %.0f t/s"
+                                 % (t_count, cur - start, t_count*1. / (cur - start)))
 
-            if self.word_limit and w_count > self.word_limit:
-                break
+                    prev = cur
+
+                t_count += len(tokens)
+
+                yield tokens
+
+                if self.word_limit and t_count > self.word_limit:
+                    break
+
+        pool.terminate()
+
+        end = time.clock()
+        logging.info("Sublexicalizing %d finished in %d seconds, %.0f t/s"
+                     % (t_count, end - start, t_count*1. / (end - start)))
+
+        self.length = t_count
 
 
 class LimitCorpus(TextCorpus):
@@ -228,9 +309,9 @@ def baseline_pipelines(word_repr_path=None):
                                                    strip_accents='unicode',
                                                    preprocessor=mahoney_clean), MultinomialNB()),
         'base_word_nopreproc': TopicPipeline(CountVectorizer(max_features=1000,
-                                                   decode_error='ignore',
-                                                   strip_accents='unicode',
-                                                   preprocessor=mahoney_clean), MultinomialNB()),
+                                                             decode_error='ignore',
+                                                             strip_accents='unicode',
+                                                             preprocessor=mahoney_clean), MultinomialNB()),
         'base_c4': TopicPipeline(CountVectorizer(max_features=1000,
                                                  decode_error='ignore',
                                                  strip_accents='unicode',

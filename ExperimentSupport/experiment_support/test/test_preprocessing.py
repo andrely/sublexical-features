@@ -22,7 +22,7 @@ class TestPreprocessing(unittest.TestCase):
         result = mahoney_clean(enwiki_input)
         self.assertEqual(result, fil_output)
 
-    def test_subexicalize(self):
+    def test_sublexicalize(self):
         result = sublexicalize("abc def ghi", order=3)
         self.assertEquals(result, "abc bc_ c_d _de def ef_ f_g _gh ghi")
 
