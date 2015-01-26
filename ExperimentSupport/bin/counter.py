@@ -1,11 +1,15 @@
 import logging
 import sys
 import time
+import codecs
+
+sys.stdout=codecs.getwriter('utf-8')(sys.stdout)
+sys.stdin=codecs.getreader('utf-8')(sys.stdin)
 
 
 def main():
     t_count = 0
-    start = time.clock()
+    start = time.time()
     prev = start
 
     for text in sys.stdin:
@@ -13,7 +17,7 @@ def main():
 
         sys.stdout.write(text)
 
-        cur = time.clock()
+        cur = time.time()
 
         if cur - prev > 10:
             logging.info("Processed %d in %d seconds, %.0f t/s"
@@ -21,7 +25,7 @@ def main():
 
             prev = cur
 
-    end = time.clock()
+    end = time.time()
     logging.info("Processed %d finished in %d seconds, %.0f t/s"
                  % (t_count, end - start, t_count*1. / (end - start)))
 

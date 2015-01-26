@@ -1,20 +1,23 @@
 import logging
 import sys
-import time
+import codecs
 
-from gensim.corpora.wikicorpus import filter_wiki, tokenize
+from gensim.corpora.wikicorpus import filter_wiki
+from gensim.utils import PAT_ALPHABETIC
+
+
+sys.stdout=codecs.getwriter('utf-8')(sys.stdout)
+sys.stdin=codecs.getreader('utf-8')(sys.stdin)
 
 
 def main():
-    start = time.clock()
-
     for text in sys.stdin:
         text = filter_wiki(text)
-        text = tokenize(text)
+        tokens = [match.group() for match in PAT_ALPHABETIC.finditer(text)]
 
-        if text:
-            sys.stdout.write(' '.join(text))
-            sys.stdout.write('\n')
+        if tokens:
+            text = ' '.join(tokens)
+            sys.stdout.write(text + '\n')
 
 
 if __name__ == '__main__':
