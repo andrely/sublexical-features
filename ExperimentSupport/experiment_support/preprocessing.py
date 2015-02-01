@@ -105,3 +105,15 @@ def clean_c45(text_str):
 
 def clean_c36(text_str):
     return sublexicalize(mahoney_clean(text_str), order=(3, 6))
+
+
+def parse_ngram_order(arg_str):
+    tokens = arg_str.split(',')
+
+    if len(tokens) == 1:
+        order = int(tokens[0])
+        return order, order
+    elif len(tokens) == 2:
+        return int(tokens[0]), int(tokens[1])
+    else:
+        raise ValueError
