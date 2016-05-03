@@ -1,24 +1,26 @@
 # coding=utf-8
-import sys
-import os.path
-import time
-import re  # TODO use regex when it will be standard
+import Queue
 import argparse
-from itertools import izip, izip_longest
-import logging
-import urllib
 import bz2
 import codecs
-from htmlentitydefs import name2codepoint
-import Queue
-import threading
-import os.path
-from bz2 import BZ2File
 import io
+import logging
+import os.path
+import os.path
+import re  # TODO use regex when it will be standard
+import sys
+import threading
+import time
+import urllib
+from bz2 import BZ2File
+from htmlentitydefs import name2codepoint
+from itertools import izip, izip_longest
 
 from lxml import etree
+from spacy.en import English
 
 import wiki_infobox
+
 # from es_text_analytics.data.dataset import Dataset
 
 """
@@ -151,8 +153,10 @@ def extract_page(element):
     # get metadata/data
     metadata = dict(extract_metadata(element))
     infometa = wiki_infobox.scrape_infobox(metadata['revision.text'])
-    if not infometa is None:
+
+    if infometa:
         metadata['infoboks'] = infometa
+
     # extract text using WikiExtractor
     e = Extractor(int(metadata['id']), metadata['title'], metadata['revision.text'])
     Extractor.toHTML = False
@@ -171,7 +175,7 @@ def extract_page(element):
     return metadata
 
 
-def iterator(dump_fn, num_articles):
+def article_gen(dump_fn, num_articles=None):
     """
     Yields the page content and metadata as dicts.
 
@@ -196,34 +200,65 @@ def iterator(dump_fn, num_articles):
             if data['revision.text'][0:9] == '#REDIRECT':
                 continue
             counter += 1
-            if 0 < num_articles < counter:
+            if num_articles and num_articles < counter:
                 return
             # filter out empty crap
             if len(data['article.text']) < 30:
                 continue
+
             yield data
 
     f.close()
 
 
-# class WikipediaDataset(Dataset):
-#     """
-#     Dataset class encapsulating Wikipedia articles and metadata extacted fron BZip2 compressed
-#     XML dump files.
-#
-#     Downloading archives from the Wikipedia dump site is too slow so the dump archive must be
-#     downloaded manually and passed to the constructor.
-#     Optionally pass a second argument for the number of articles to extract
-#     """
-#     def __init__(self, dump_fn, num_articles=0, **kwargs):
-#         self.num_articles = num_articles
-#         super(WikipediaDataset, self).__init__(dataset_fn=dump_fn,  **kwargs)
-#
-#     def install(self, es=None):
-#         raise NotImplementedError("Wikipedia dumps are too large to install automatically")
-#
-#     def _iterator(self):
-#         return iterator(self.dataset_fn, self.num_articles)
+def sentence_gen(dump_fn, num_sents=None, spacy_args=None):
+    nlp = English()
+
+    for doc in nlp.pipe((article['article.text'] for article in article_gen(dump_fn)), **spacy_args):
+        # Iterate over base NPs, e.g. "all their good ideas"
+        for np in doc.noun_chunks:
+            # Only keep adjectives and nouns, e.g. "good ideas"
+            while len(np) > 1 and np[0].dep_ not in ('amod', 'compound'):
+                np = np[1:]
+            if len(np) > 1:
+                # Merge the tokens, e.g. good_ideas
+                np.merge(np.root.tag_, np.text, np.root.ent_type_)
+            # Iterate over named entities
+            for ent in doc.ents:
+                if len(ent) > 1:
+                    # Merge them into single tokens
+                    ent.merge(ent.root.tag_, ent.text, ent.label_)
+
+        count = 0
+
+        for sent in doc.sents:
+            out_sent = []
+
+            count += 1
+
+            if count > num_sents:
+                return
+
+            for token in sent:
+                token_text = token.text.replace(' ', '_').lower()
+                tag = token.ent_type_ or token.pos_
+
+                if nlp.is_stop(token_text) or tag == 'SPACE':
+                    continue
+
+                out_sent.append('%s|%s' % (token_text, tag))
+
+            yield out_sent
+
+
+class WikiSentences():
+    def __init__(self, dump_fn, num_sents=None, spacy_args=None):
+        self.dump_fn = dump_fn
+        self.num_sents = num_sents
+        self.spacy_args = spacy_args
+
+    def __iter__(self):
+        return sentence_gen(self.dump_fn, num_sents=self.num_sents, spacy_args=self.spacy_args)
 
 
 # From WikiExtractor.py
