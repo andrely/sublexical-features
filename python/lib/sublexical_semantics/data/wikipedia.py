@@ -236,7 +236,7 @@ def sentence_gen(dump_fn, num_sents=None, spacy_args=None):
 
             count += 1
 
-            if count > num_sents:
+            if num_sents and count > num_sents:
                 return
 
             for token in sent:
