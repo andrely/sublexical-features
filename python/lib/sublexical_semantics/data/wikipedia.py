@@ -175,7 +175,7 @@ def extract_page(element):
     return metadata
 
 
-def article_gen(dump_fn, num_articles=None):
+def article_gen(dump_fn, num_articles=None, parse=True):
     """
     Yields the page content and metadata as dicts.
 
@@ -185,6 +185,9 @@ def article_gen(dump_fn, num_articles=None):
     :rtype : generator
     """
     counter = 0
+    redirect = 0
+    nocontent = 0
+    nopage = 0
 
     if os.path.splitext(dump_fn)[1] == '.bz2':
         f = BZ2File(dump_fn)
@@ -194,19 +197,36 @@ def article_gen(dump_fn, num_articles=None):
     for _, element in etree.iterparse(f):
         no_ns_elt = remove_ns(element)
 
-        if no_ns_elt.tag == 'page':
-            data = extract_page(no_ns_elt)
+        if parse:
+            if no_ns_elt.tag == 'page':
+                data = extract_page(no_ns_elt)
 
-            if data['revision.text'][0:9] == '#REDIRECT':
-                continue
+                if data['revision.text'][0:9] == '#REDIRECT':
+                    redirect += 1
+                    continue
+
+                counter += 1
+
+                # filter out empty crap
+                if len(data['article.text']) < 30:
+                    nocontent += 1
+                    continue
+
+                no_ns_elt.clear()
+                element.clear()
+
+                yield data
+            else:
+                nopage +=1
+        else:
             counter += 1
-            if num_articles and num_articles < counter:
-                return
-            # filter out empty crap
-            if len(data['article.text']) < 30:
-                continue
 
-            yield data
+            yield str(element)
+
+        if num_articles and num_articles <= counter:
+                    return
+
+    logging.info("Articles %d, redirects %d, no content %d, no page %d ..." % (counter, redirect, nocontent, nopage))
 
     f.close()
 
@@ -405,15 +425,18 @@ ignoredTags = [
 
 placeholder_tags = {'math': 'formula', 'code': 'codice'}
 
+re_title_sub = re.compile(r'[\s_]+')
+re_title_match = re.compile(r'([^:]*):(\s*)(\S(?:.*))')
 
 def normalize_title(title):
     """Normalize title"""
     # remove leading/trailing whitespace and underscores
     title = title.strip(' _')
     # replace sequences of whitespace and underscore chars with a single space
-    title = re.sub(r'[\s_]+', ' ', title)
+    title = re_title_sub.sub(' ', title)
 
-    m = re.match(r'([^:]*):(\s*)(\S(?:.*))', title)
+    m = re_title_match.match(title)
+
     if m:
         prefix = m.group(1)
         if m.group(2):
@@ -450,6 +473,8 @@ def normalize_title(title):
 # @param text The HTML (or XML) source text.
 # @return The plain text, as a Unicode string, if necessary.
 
+re_unescape_fixup = re.compile("&#?(\w+);")
+
 def unescape(text):
     def fixup(m):
         inner_text = m.group(0)
@@ -466,7 +491,7 @@ def unescape(text):
         except:
             return inner_text  # leave as is
 
-    return re.sub("&#?(\w+);", fixup, text)
+    return re_unescape_fixup.sub(fixup, text)
 
 
 # Match HTML comments
@@ -630,7 +655,9 @@ class TemplateArg(object):
 # ======================================================================
 
 substWords = 'subst:|safesubst:'
+re_subst_words = re.compile(substWords, re.IGNORECASE)
 
+RE_PARAM = re.compile(' *([^= ]*?) *=(.*)', re.DOTALL)
 
 class Extractor(object):
     """
@@ -780,7 +807,8 @@ class Extractor(object):
             # The '=' might occurr within an HTML attribute:
             #   "&lt;ref name=value"
             # but we stop at first.
-            m = re.match(' *([^= ]*?) *=(.*)', param, re.DOTALL)
+            m = RE_PARAM.match(param)
+
             if m:
                 # This is a named parameter.  This case also handles parameter
                 # assignments like "2=xxx", where the number of an unnamed
@@ -867,8 +895,10 @@ class Extractor(object):
         # {{subst:t|a{{{p|q}}}b}} gives the wikitext start-a{{{p|q}}}b-end
         # @see https://www.mediawiki.org/wiki/Manual:Substitution#Partial_substitution
         subst = False
-        if re.match(substWords, title, re.IGNORECASE):
-            title = re.sub(substWords, '', title, 1, re.IGNORECASE)
+
+        if re_subst_words.match(title):
+            # title = re.sub(substWords, '', title, 1, re.IGNORECASE)
+            title = re_subst_words.sub('', title, 1)
             subst = True
 
         if title.lower() in self.magicWords.values:
@@ -1340,6 +1370,8 @@ def lcfirst(string):
         return ''
 
 
+RE_TEMPLATE_TITLE = re.compile('([^:]*)(:.*)')
+
 def fully_qualified_template_title(template_title):
     """
     Determine the namespace of the page being included through the template
@@ -1349,7 +1381,7 @@ def fully_qualified_template_title(template_title):
         # Leading colon by itself implies main namespace, so strip this colon
         return ucfirst(template_title[1:])
     else:
-        m = re.match('([^:]*)(:.*)', template_title)
+        m = RE_TEMPLATE_TITLE.match(template_title)
         if m:
             # colon found but not in the first position - check if it
             # designates a known namespace
