@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -61,7 +62,7 @@ def main():
 
         bucket_path = get_bucket_path(out_path, art_bucket)
 
-        fn = os.path.join(bucket_path, '%s.json' % title)
+        fn = os.path.join(bucket_path, hashlib.sha256('%s.json' % title).hexdigest())
 
         if repeat or not os.path.exists(fn):
             with open(fn, 'w') as f:
