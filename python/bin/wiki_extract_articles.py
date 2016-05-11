@@ -34,6 +34,7 @@ def main():
     parser.add_argument('-o', '--out-dir')
     parser.add_argument('-r', '--repeat', default=False, type=bool)
     parser.add_argument('-l', '--limit', default=None, type=int)
+    parser.add_argument('-p', '--procs', default=1, type=int)
 
     opts = parser.parse_args()
 
@@ -41,13 +42,14 @@ def main():
     out_path = opts.out_dir
     repeat = opts.repeat
     limit = opts.limit
+    parser_procs = opts.procs
 
     if not dump_fn or not out_path:
         sys.exit(1)
 
     count = 0
 
-    for obj in article_gen(dump_fn, num_articles=limit):
+    for obj in article_gen(dump_fn, num_articles=limit, n_procs=parser_procs):
         count += 1
 
         if count % 10000 == 0:

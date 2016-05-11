@@ -5,6 +5,7 @@ import bz2
 import codecs
 import io
 import logging
+import multiprocessing
 import os.path
 import os.path
 import re  # TODO use regex when it will be standard
@@ -175,7 +176,11 @@ def extract_page(element):
     return metadata
 
 
-def article_gen(dump_fn, num_articles=None, parse=True):
+def _extract_page_pickle_friendly(e):
+    return extract_page(etree.fromstring(e))
+
+
+def article_gen(dump_fn, num_articles=None, parse=True, n_procs=1):
     """
     Yields the page content and metadata as dicts.
 
@@ -184,10 +189,24 @@ def article_gen(dump_fn, num_articles=None, parse=True):
     :type dump_fn: unicode|str
     :rtype : generator
     """
+    pool = multiprocessing.Pool(processes=n_procs)
+
+    for data in pool.imap(_extract_page_pickle_friendly,
+                          (etree.tostring(page) for page
+                           in _article_gen_inner(dump_fn, num_articles=num_articles, parse=parse))):
+        if data['revision.text'][0:9] == '#REDIRECT':
+            continue
+
+
+        # filter out empty crap
+        if len(data['article.text']) < 30:
+            continue
+
+        yield data
+
+
+def _article_gen_inner(dump_fn, num_articles=None, parse=True):
     counter = 0
-    redirect = 0
-    nocontent = 0
-    nopage = 0
 
     if os.path.splitext(dump_fn)[1] == '.bz2':
         f = BZ2File(dump_fn)
@@ -199,25 +218,12 @@ def article_gen(dump_fn, num_articles=None, parse=True):
 
         if parse:
             if no_ns_elt.tag == 'page':
-                data = extract_page(no_ns_elt)
-
-                if data['revision.text'][0:9] == '#REDIRECT':
-                    redirect += 1
-                    continue
+                yield no_ns_elt
 
                 counter += 1
 
-                # filter out empty crap
-                if len(data['article.text']) < 30:
-                    nocontent += 1
-                    continue
-
                 no_ns_elt.clear()
                 element.clear()
-
-                yield data
-            else:
-                nopage +=1
         else:
             counter += 1
 
@@ -226,15 +232,14 @@ def article_gen(dump_fn, num_articles=None, parse=True):
         if num_articles and num_articles <= counter:
                     return
 
-    logging.info("Articles %d, redirects %d, no content %d, no page %d ..." % (counter, redirect, nocontent, nopage))
-
     f.close()
 
 
-def sentence_gen(dump_fn, num_sents=None, spacy_args=None):
+def sentence_gen(dump_fn, num_sents=None, spacy_args=None, parse_procs=1):
     nlp = English()
 
-    for doc in nlp.pipe((article['article.text'] for article in article_gen(dump_fn)), **spacy_args):
+    for doc in nlp.pipe((article['article.text']
+                         for article in article_gen(dump_fn, n_procs=parse_procs)), **spacy_args):
         # Iterate over base NPs, e.g. "all their good ideas"
         for np in doc.noun_chunks:
             # Only keep adjectives and nouns, e.g. "good ideas"
