@@ -29,9 +29,9 @@ def main():
     n_procs = opts.num_procs
     out_fn = opts.out
 
-    dump_gen = get_dump_gen(dump_loc, limit=limit)
+    dump_gen = get_dump_gen(dump_loc, limit=limit, n_procs=n_procs)
 
-    nlp = spacy.English()
+    nlp = spacy.en.English()
     vocab = Dictionary(([token.text.lower().strip() for token in doc if token.text.strip() != ""]
                         for doc in nlp.pipe((art['article.text'] for art in dump_gen), n_threads=n_procs,
                                             parse=False, tag=False, entity=False)))

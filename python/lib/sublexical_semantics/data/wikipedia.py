@@ -58,7 +58,7 @@ remove_ns_xslt = '''
 </xsl:stylesheet>
 '''
 
-remove_ns_transform = etree.XSLT(etree.parse(io.BytesIO(remove_ns_xslt)))
+remove_ns_transform = etree.XSLT(etree.parse(io.BytesIO(str.encode(remove_ns_xslt))))
 
 
 def remove_ns(element):
@@ -153,7 +153,10 @@ def extract_page(element):
     """
     # get metadata/data
     metadata = dict(extract_metadata(element))
-    infometa = wiki_infobox.scrape_infobox(metadata['revision.text'])
+
+    infometa = None
+    if 'revision.text' in metadata:
+        infometa = wiki_infobox.scrape_infobox(metadata['revision.text'])
 
     if infometa:
         metadata['infoboks'] = infometa
@@ -177,7 +180,9 @@ def extract_page(element):
 
 
 def _extract_page_pickle_friendly(e):
-    return extract_page(etree.fromstring(e))
+    page = extract_page(etree.fromstring(e))
+
+    return page
 
 
 def article_gen(dump_fn, num_articles=None, parse=True, n_procs=1):
@@ -189,23 +194,27 @@ def article_gen(dump_fn, num_articles=None, parse=True, n_procs=1):
     :type dump_fn: unicode|str
     :rtype : generator
     """
-    pool = multiprocessing.Pool(processes=n_procs)
+    if parse:
+        pool = multiprocessing.Pool(processes=n_procs)
 
-    for data in pool.imap(_extract_page_pickle_friendly,
-                          (etree.tostring(page) for page
-                           in _article_gen_inner(dump_fn, num_articles=num_articles, parse=parse))):
-        if data['revision.text'][0:9] == '#REDIRECT':
-            continue
+        for data in pool.imap(_extract_page_pickle_friendly, _article_gen_inner(dump_fn, num_articles=num_articles)):
+            if 'revision.text' in data:
+                if data['revision.text'][0:9] == '#REDIRECT':
+                    continue
 
+            # filter out empty crap
+            if len(data['article.text']) < 30:
+                continue
 
-        # filter out empty crap
-        if len(data['article.text']) < 30:
-            continue
+            if data['title'].startswith('Wikipedia:'):
+                continue
 
-        yield data
+            yield data
+    else:
+        for data in _article_gen_inner(dump_fn, num_articles=num_articles):
+            yield data
 
-
-def _article_gen_inner(dump_fn, num_articles=None, parse=True):
+def _article_gen_inner(dump_fn, num_articles=None):
     counter = 0
 
     if os.path.splitext(dump_fn)[1] == '.bz2':
@@ -213,24 +222,40 @@ def _article_gen_inner(dump_fn, num_articles=None, parse=True):
     else:
         f = open(dump_fn)
 
-    for _, element in etree.iterparse(f):
-        no_ns_elt = remove_ns(element)
+    for _, element in etree.iterparse(f): #, tag='{http://www.mediawiki.org/xml/export-0.8/}page'):
+        try:
+            no_ns_elt = remove_ns(element)
 
-        if parse:
             if no_ns_elt.tag == 'page':
-                yield no_ns_elt
-
-                counter += 1
+                yield etree.tostring(no_ns_elt)
 
                 no_ns_elt.clear()
                 element.clear()
-        else:
-            counter += 1
 
-            yield str(element)
+                counter += 1
 
-        if num_articles and num_articles <= counter:
+                # Also eliminate now-empty references from the root node to elem
+                # for ancestor in element.xpath('ancestor-or-self::*'):
+                while element.getprevious() is not None:
+                    del element.getparent()[0]
+
+                while no_ns_elt.getprevious() is not None:
+                    del no_ns_elt.getparent()[0]
+
+                if num_articles and num_articles <= counter:
                     return
+            elif no_ns_elt.tag == 'logitem' or no_ns_elt.tag == 'siteinfo':
+                no_ns_elt.clear()
+                element.clear()
+
+                while element.getprevious() is not None:
+                    del element.getparent()[0]
+
+                while no_ns_elt.getprevious() is not None:
+                    del no_ns_elt.getparent()[0]
+        except Exception, e:
+            logging.error("Element parse failed with exception %s, message %s" % (type(e), e.message))
+            continue
 
     f.close()
 

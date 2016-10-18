@@ -36,3 +36,16 @@ def extracted_gen(path, limit=None, shuffle_dirs=False):
                 yield data
         except:
             logging.error("Failed to load file %s ..." % fn)
+
+
+def single_file_gen(fn, limit=None):
+    counter = 0
+
+    with open(fn, 'r') as f:
+        for line in f:
+            counter += 1
+
+            if limit and counter > limit:
+                return
+
+            yield json.loads(line)

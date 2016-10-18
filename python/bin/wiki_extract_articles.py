@@ -32,7 +32,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('-d', '--dump-file')
     parser.add_argument('-o', '--out-dir')
-    parser.add_argument('-r', '--repeat', default=False, type=bool)
+    parser.add_argument('-r', '--repeat', default=False, action='store_true')
     parser.add_argument('-l', '--limit', default=None, type=int)
     parser.add_argument('-p', '--procs', default=1, type=int)
 
@@ -52,6 +52,9 @@ def main():
     for obj in article_gen(dump_fn, num_articles=limit, n_procs=parser_procs):
         count += 1
 
+        if 'revision.text' in obj:
+            obj['revision.text'] = None
+
         if count % 10000 == 0:
             logging.info('Read %d articles ...' % count)
 
@@ -64,7 +67,7 @@ def main():
 
         bucket_path = get_bucket_path(out_path, art_bucket)
 
-        fn = os.path.join(bucket_path, hashlib.sha256('%s.json' % title).hexdigest())
+        fn = os.path.join(bucket_path, '%s.json' % hashlib.sha256(title).hexdigest())
 
         if repeat or not os.path.exists(fn):
             with open(fn, 'w') as f:
