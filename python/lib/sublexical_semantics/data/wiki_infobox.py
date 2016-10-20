@@ -27,7 +27,7 @@ def scrape_infobox(content):
     # Remove HTML comment tags.
     content = re.sub('<!--[\\S\\s]*?-->', ' ', content)
 
-    box_occurences = re.split('{{infoboks[^\n}]*\n', content.lower())
+    box_occurences = re.split('\{\{infoboks[^\n\}]*\n', content.lower())
 
     if len(box_occurences) < 2:
         return None

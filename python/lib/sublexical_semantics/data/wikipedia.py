@@ -1,8 +1,24 @@
 # coding=utf-8
-import Queue
+
+# python 2/3 compatability, requires future package
+from io import StringIO
+
+from builtins import chr
+from builtins import str as text
+from builtins import str
+from future.moves.itertools import zip_longest
+from html.entities import name2codepoint
+from past.builtins import xrange
+from queue import Queue
+
+try:
+    import itertools.izip as zip
+except ImportError:
+    pass
+
+
 import argparse
 import bz2
-import codecs
 import io
 import logging
 import multiprocessing
@@ -14,15 +30,12 @@ import threading
 import time
 import urllib
 from bz2 import BZ2File
-from htmlentitydefs import name2codepoint
-from itertools import izip, izip_longest
 
 from lxml import etree
 from spacy.en import English
 
 import wiki_infobox
 
-# from es_text_analytics.data.dataset import Dataset
 
 """
 Dataset extracting article content and some metadata from Wikipedia dumps.
@@ -58,7 +71,7 @@ remove_ns_xslt = '''
 </xsl:stylesheet>
 '''
 
-remove_ns_transform = etree.XSLT(etree.parse(io.BytesIO(str.encode(remove_ns_xslt))))
+remove_ns_transform = etree.XSLT(etree.parse(io.BytesIO(remove_ns_xslt.encode())))
 
 
 def remove_ns(element):
@@ -71,40 +84,6 @@ def remove_ns(element):
     :return: XML document node with namespaces removed.
     """
     return remove_ns_transform(element).getroot()
-
-
-class StringWrapper(object):
-    """
-    Simple wrapper class redirecting WikiExtractor output to a string.
-
-    Accepts and returns unicode strings.
-    """
-
-    def __init__(self):
-        super(StringWrapper, self).__init__()
-
-        self.inner = u''
-
-    def open(self, fn):
-        pass
-
-    def reserve(self, size):
-        pass
-
-    def close(self):
-        pass
-
-    def write(self, data):
-        self.inner += data.decode('utf-8')
-
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__dict__ == other.__dict__
-        else:
-            return False
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
 
 
 def extract_metadata(element, tags=None):
@@ -164,9 +143,9 @@ def extract_page(element):
     # extract text using WikiExtractor
     e = Extractor(int(metadata['id']), metadata['title'], metadata['revision.text'])
     Extractor.toHTML = False
-    out = StringWrapper()
+    out = StringIO()
     e.extract(out=out)
-    metadata['article.text'] = out.inner
+    metadata['article.text'] = out.getvalue()
 
     # parse some of the metadata
     metadata['id'] = int(metadata['id']) if metadata.get('id', '') != '' else -1
@@ -197,7 +176,7 @@ def article_gen(dump_fn, num_articles=None, parse=True, n_procs=1):
     if parse:
         pool = multiprocessing.Pool(processes=n_procs)
 
-        for data in pool.imap(_extract_page_pickle_friendly, _article_gen_inner(dump_fn, num_articles=num_articles)):
+        for data in pool.map(_extract_page_pickle_friendly, _article_gen_inner(dump_fn, num_articles=num_articles)):
             if 'revision.text' in data:
                 if data['revision.text'][0:9] == '#REDIRECT':
                     continue
@@ -213,6 +192,7 @@ def article_gen(dump_fn, num_articles=None, parse=True, n_procs=1):
     else:
         for data in _article_gen_inner(dump_fn, num_articles=num_articles):
             yield data
+
 
 def _article_gen_inner(dump_fn, num_articles=None):
     counter = 0
@@ -253,7 +233,7 @@ def _article_gen_inner(dump_fn, num_articles=None):
 
                 while no_ns_elt.getprevious() is not None:
                     del no_ns_elt.getparent()[0]
-        except Exception, e:
+        except Exception as e:
             logging.error("Element parse failed with exception %s, message %s" % (type(e), e.message))
             continue
 
@@ -513,11 +493,11 @@ def unescape(text):
         try:
             if inner_text[1] == "#":  # character reference
                 if inner_text[2] == "x":
-                    return unichr(int(code[1:], 16))
+                    return chr(int(code[1:], 16))
                 else:
-                    return unichr(int(code))
+                    return chr(int(code))
             else:  # named entity
-                return unichr(name2codepoint[code])
+                return chr(name2codepoint[code])
         except:
             return inner_text  # leave as is
 
@@ -619,10 +599,10 @@ class Template(list):
         return ''.join([tpl.subst(params, extractor, depth) for tpl in self])
 
     def __str__(self):
-        return ''.join([unicode(x) for x in self])
+        return ''.join([text(x) for x in self])
 
 
-class TemplateText(unicode):
+class TemplateText(text):
     """Fixed text of template"""
 
     # noinspection PyUnusedLocal
@@ -733,13 +713,13 @@ class Extractor(object):
         self.magicWords['currenttime'] = time.strftime('%H:%M:%S')
         text = clean(self, text)
         #footer = "\n</doc>\n"
-        if out != sys.stdout:
+        if out != sys.stdout and not isinstance(out, StringIO):
          #   out.reserve(len(header) + len(text) + len(footer))
-           out.reserve(len(text))
+          out.reserve(len(text))
         #out.write(header)
         for line in compact(text):
-            out.write(line.encode('utf-8'))
-            out.write('\n')
+            out.write(line)
+            out.write(u'\n')
     #    out.write(footer)
 
     # ----------------------------------------------------------------------
@@ -1208,7 +1188,7 @@ def find_balanced(text, open_delim, close_delim):
     """
     open_pat = '|'.join([re.escape(x) for x in open_delim])
     # patter for delimiters expected after each opening delimiter
-    after_pat = {o: re.compile(open_pat + '|' + c, re.DOTALL) for o, c in izip(open_delim, close_delim)}
+    after_pat = {o: re.compile(open_pat + '|' + c, re.DOTALL) for o, c in zip(open_delim, close_delim)}
     stack = []
     start = 0
     cur = 0
@@ -1480,7 +1460,7 @@ def sharp_expr(expr):
         expr = re.sub('mod', '%', expr)
         expr = re.sub('\bdiv\b', '/', expr)
         expr = re.sub('\bround\b', '|ROUND|', expr)
-        return unicode(eval(expr))
+        return text(eval(expr))
     except:
         return '<span class="error"></span>'
 
@@ -2368,7 +2348,7 @@ def compact(text):
                 title += '.'
             headers[lev] = title
             # drop previous headers
-            for i in headers.keys():
+            for i in list(headers.keys()):
                 if i > lev:
                     del headers[i]
             empty_section = True
@@ -2388,7 +2368,7 @@ def compact(text):
         elif line[0] in '*#;:':
             if Extractor.toHTML:
                 i = 0
-                for c, n in izip_longest(list_level, line):
+                for c, n in zip_longest(list_level, line):
                     if n not in '*#;:':
                         if c:
                             page.append(listClose[c])
@@ -2423,7 +2403,7 @@ def compact(text):
             continue
         elif len(headers):
             if not Extractor.keepSections:
-                items = headers.items()
+                items = list(headers.items())
                 items.sort()
                 for (i, v) in items:
                     page.append(v)
@@ -2446,7 +2426,7 @@ def handle_unicode(entity):
     if numeric_code >= 0x10000:
         return ''
 
-    return unichr(numeric_code)
+    return chr(numeric_code)
 
 
 # ------------------------------------------------------------------------------
@@ -2538,7 +2518,7 @@ def load_templates(input_file, output_file=None):
     page = []
     in_text = False
     if output_file:
-        output = codecs.open(output_file, 'wb', 'utf-8')
+        output = io.open(output_file, mode='w', encoding='utf-8')
     for line in input_file:
         line = line.decode('utf-8')
         if '<' not in line:  # faster than doing re.search()
@@ -2641,7 +2621,7 @@ def process_dump(input_fn, template_file, outdir, file_size, file_compress, thre
     # initialize jobs queue
     # threads = multiprocessing.cpu_count()
     logging.info("Using %d CPUs.", threads)
-    queue = Queue.Queue(maxsize=2 * threads)
+    queue = Queue(maxsize=2 * threads)
     lock = threading.Lock()  # for protecting shared state.
 
     next_file = NextFile(lock, outdir)

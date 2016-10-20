@@ -3,7 +3,6 @@ import os
 from argparse import ArgumentParser
 
 import spacy
-from gensim.corpora.dictionary import Dictionary
 from gensim.models.word2vec import Word2Vec
 
 from sublexical_semantics.data.json_dump import extracted_gen
