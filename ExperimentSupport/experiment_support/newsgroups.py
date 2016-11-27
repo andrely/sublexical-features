@@ -1,28 +1,24 @@
-from collections import Sequence
 import logging
 import time
-from numpy import array, mean, std
 
+from numpy import mean, std
 from sklearn import clone
-
-from sklearn.cross_validation import KFold, train_test_split, cross_val_score
+from sklearn.cross_validation import cross_val_score
+from sklearn.cross_validation import KFold
 from sklearn.externals.joblib import Parallel, delayed
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer, TfidfTransformer
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, Normalizer
+from sklearn.svm import LinearSVC
 
-# from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
-from sklearn.svm import SVC, LinearSVC
-
-from shared_corpora.newsgroups import ArticleSequence, newsgroups_corpus_path, GroupSequence, article_count
-from experiments.experiment_runner import baseline_pipelines, run_experiment
 from shared_corpora.newsgroups import parse_articles
-from shared_corpora.preprocessing import sublexicalize, mahoney_clean, make_preprocessor
+from shared_corpora.preprocessing import sublexicalize
 from shared_corpora.sequences import ListSequence
-from sublexical_semantics.vectorizers import BrownClusterVectorizer, LsiVectorizer, MultiVectorizer, Word2VecVectorizer
+from sublexical_semantics.vectorizers import MultiVectorizer
+from brown_clustering.brown_cluster_vectorizer import BrownClusterVectorizer
+from shared_corpora.newsgroups import ArticleSequence, newsgroups_corpus_path, GroupSequence, article_count
 
 
 def plain_word_counts(corpus_path):
