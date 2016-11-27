@@ -1,27 +1,14 @@
 import logging
 import os
+import sys
 from argparse import ArgumentParser
 
-import spacy
-from gensim.corpora.dictionary import Dictionary
 from gensim.models.word2vec import Word2Vec
 
-from sublexical_semantics.data.json_dump import extracted_gen
-from sublexical_semantics.data.wikipedia import article_gen
+sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'lib'))
 
+from sublexical_semantics.data.cirrus_wikipedia import CirrusDumpIter
 
-def get_dump_gen(dump_loc, limit=None, n_procs=1):
-    if os.path.isdir(dump_loc):
-        return extracted_gen(dump_loc, limit=limit)
-    else:
-        return article_gen(dump_loc, n_procs=n_procs, num_articles=limit)
-
-
-def sentences(dump_loc, nlp, limit=None, n_procs=1):
-    return ([token.text.lower().strip() for token in doc if token.text.strip() != ""]
-            for doc in nlp.pipe((art['article.text']
-                                 for art in get_dump_gen(dump_loc, limit=limit, n_procs=n_procs)),
-                                n_threads=n_procs, parse=False, tag=False, entity=False))
 
 def main():
     parser = ArgumentParser()
@@ -36,12 +23,12 @@ def main():
     n_procs = opts.num_procs
     out_fn = opts.out
 
-    nlp = spacy.en.English()
-
     model = Word2Vec(size=300, workers=n_procs, max_vocab_size=250000)
-    model.build_vocab(sentences(dump_loc, nlp, limit=limit, n_procs=n_procs))
+    articles = CirrusDumpIter(dump_loc, limit=limit)
+
+    model.build_vocab(articles)
     model.save('%s-vocabonly' % out_fn)
-    model.train(sentences(dump_loc, nlp, limit=limit, n_procs=n_procs))
+    model.train(articles)
 
     model.save(out_fn)
 
