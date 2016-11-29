@@ -1,3 +1,4 @@
+# coding=utf-8
 import logging
 import os
 import sys
@@ -31,6 +32,19 @@ from sublexical_semantics.data.preprocessing import DataframeSentences, zhang_ch
 from sublexical_semantics.data.sogou_news import sogou_news_dataset, read_categories, add_category
 from sublexical_semantics.data.yelp import yelp_reviews_df
 from sublexical_semantics.feature_extraction.clustered_embeddings_vectorizer import ClusteredEmbeddingsVectorizer
+
+
+CHAR_MAP = u'abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:"\'/\\|_@#$%ˆ&* ̃‘+-=<>()[]{}\n\t '
+LARGE_CHAR_MAP = u'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-,;.!?:"\'/\\|_@#$%ˆ&* ̃‘+-=<>()[]{}\n\t '
+
+
+def char_embedding(type='small'):
+    if type == 'small':
+        return np.identity(len(CHAR_MAP) + 1)
+    elif type == 'large':
+        return np.identity(len(LARGE_CHAR_MAP) + 1)
+    else:
+        raise ValueError
 
 
 def stratified_sample(df, size=None, target_col=None):
@@ -321,6 +335,72 @@ def dbpedia_smallwordconv(sample=None, n_procs=None):
     model.fit(x_train, y_train, batch_size=32, nb_epoch=5, validation_data=[x_test, y_test])
 
     print(accuracy_score(np.argwhere(y_test)[:,1], model.predict_classes(x_test)))
+
+
+def dbpedia_smallcharconv(sample=None, n_procs=None):
+    if not n_procs:
+        n_procs = cpu_count()
+
+    df = get_dbpedia_data(size=sample)
+
+    if sample:
+        test_size = int(round(np.sum(5000 * df.category.value_counts().values / 45000)))
+    else:
+        test_size = 5000 * 14
+
+    logging.info('creating train test split ...')
+    split = StratifiedShuffleSplit(df.category, test_size=test_size)
+    train_split, test_split = next(iter(split))
+    train_df = df.iloc[train_split]
+    test_df = df.iloc[test_split]
+
+    logging.info('preprocessing, padding and binarizing data ...')
+    train_docs = [[CHAR_MAP.index(c) if c in CHAR_MAP else len(CHAR_MAP) for c in text] for text
+                  in train_df[['title', 'abstract']].apply(lambda cols: u'\n'.join(cols), axis=1).values]
+    bin = LabelBinarizer()
+
+    x_train = np.array(pad_sentences(train_docs, max_length=1014, padding_word=CHAR_MAP.index(' ')))
+    y_train = bin.fit_transform(train_df.category.values)
+
+    test_docs = [[CHAR_MAP.index(c) if c in CHAR_MAP else len(CHAR_MAP) for c in text] for text
+                 in test_df[['title', 'abstract']].apply(lambda cols: u'\n'.join(cols), axis=1).values]
+    x_test = np.array(pad_sentences(test_docs, max_length=1014, padding_word=0))
+    y_test = bin.transform(test_df.category.values)
+
+    logging.info('building model ...')
+    model = Sequential()
+    model.add(Embedding(len(CHAR_MAP) + 1, len(CHAR_MAP) + 1, input_length=1014,
+                        weights=[char_embedding()], trainable=False))
+    model.add(Convolution1D(nb_filter=32, filter_length=7, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(MaxPooling1D(pool_length=3, stride=1))
+    model.add(Convolution1D(nb_filter=32, filter_length=7, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(MaxPooling1D(pool_length=3, stride=1))
+    model.add(Convolution1D(nb_filter=32, filter_length=3, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(Convolution1D(nb_filter=32, filter_length=3, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(Convolution1D(nb_filter=32, filter_length=3, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(Convolution1D(nb_filter=32, filter_length=3, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(MaxPooling1D(pool_length=3, stride=1))
+    model.add(Flatten())
+    model.add(Dense(1024, activation='relu'))
+    model.add(Dropout(.5))
+    model.add(Dense(1024, activation='relu'))
+    model.add(Dropout(.5))
+    model.add(Dense(14, activation='sigmoid'))
+
+    model.compile(loss='binary_crossentropy',
+                  optimizer='adam',
+                  metrics=['categorical_accuracy'])
+
+    model.fit(x_train, y_train, batch_size=32, nb_epoch=5, validation_data=[x_test, y_test])
+
+    print(accuracy_score(np.argwhere(y_test)[:,1], model.predict_classes(x_test)))
+
 
 def agnews_bwords(sample=None, n_procs=None):
     if not n_procs:
@@ -628,6 +708,8 @@ def main():
         dbpedia_convgemb(sample=sample, n_procs=n_procs)
     elif dataset == 'dbpedia' and method == 'smallwordconv':
         dbpedia_smallwordconv(sample=sample, n_procs=n_procs)
+    elif dataset == 'dbpedia' and method == 'smallcharconv':
+        dbpedia_smallcharconv(sample=sample, n_procs=n_procs)
     elif dataset == 'agnews' and method == 'bagwords':
         agnews_bwords(sample=sample, n_procs=n_procs)
     elif dataset == 'agnews' and method == 'bagngrams':
