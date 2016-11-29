@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from argparse import ArgumentParser
 from math import floor, ceil
 from multiprocessing import cpu_count
@@ -21,6 +22,8 @@ from sklearn.linear_model.logistic import LogisticRegression
 from sklearn.metrics.classification import accuracy_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing.label import LabelBinarizer
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'lib')))
 
 from sublexical_semantics.data.ag_news import ag_news_dataset
 from sublexical_semantics.data.dbpedia_ontology import dbpedia_ontology_dataset
@@ -251,6 +254,73 @@ def dbpedia_convgemb(sample=None, n_procs=None):
 
     print(accuracy_score(np.argwhere(y_test)[:,1], model.predict_classes(x_test)))
 
+
+def dbpedia_smallwordconv(sample=None, n_procs=None):
+    if not n_procs:
+        n_procs = cpu_count()
+
+    df = get_dbpedia_data(size=sample)
+
+    if sample:
+        test_size = int(round(np.sum(5000 * df.category.value_counts().values / 45000)))
+    else:
+        test_size = 5000 * 14
+
+    logging.info('creating train test split ...')
+    split = StratifiedShuffleSplit(df.category, test_size=test_size)
+    train_split, test_split = next(iter(split))
+    train_df = df.iloc[train_split]
+    test_df = df.iloc[test_split]
+
+    logging.info('preprocessing, padding and binarizing data ...')
+    train_docs = DataframeSentences(train_df, cols=['title', 'abstract'], flatten=True)
+    vocab = Dictionary(train_docs)
+    vocab.filter_extremes(keep_n=5000)
+    bin = LabelBinarizer()
+
+    x_train = np.array(pad_sentences([[vocab.token2id[tok] + 1 for tok in s if tok in vocab.token2id]
+                                      for s in train_docs],
+                                     max_length=100, padding_word=0))
+    y_train = bin.fit_transform(train_df.category.values)
+
+    test_docs = DataframeSentences(test_df, cols=['title', 'abstract'], flatten=True)
+    x_test = np.array(pad_sentences([[vocab.token2id[tok] + 1 for tok in s if tok in vocab.token2id]
+                                      for s in test_docs],
+                                     max_length=100, padding_word=0))
+    y_test = bin.transform(test_df.category.values)
+
+    logging.info('building model ...')
+    model = Sequential()
+    model.add(Embedding(5001, 300, input_length=100))
+    model.add(Convolution1D(nb_filter=300, filter_length=7, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(MaxPooling1D(pool_length=3, stride=1))
+    model.add(Convolution1D(nb_filter=300, filter_length=7, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(MaxPooling1D(pool_length=3, stride=1))
+    model.add(Convolution1D(nb_filter=300, filter_length=3, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(Convolution1D(nb_filter=300, filter_length=3, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(Convolution1D(nb_filter=300, filter_length=3, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(Convolution1D(nb_filter=300, filter_length=3, border_mode='valid',
+                            activation='relu', subsample_length=1))
+    model.add(MaxPooling1D(pool_length=3, stride=1))
+    model.add(Flatten())
+    model.add(Dense(1024, activation='relu'))
+    model.add(Dropout(.5))
+    model.add(Dense(1024, activation='relu'))
+    model.add(Dropout(.5))
+    model.add(Dense(14, activation='sigmoid'))
+
+    model.compile(loss='binary_crossentropy',
+                  optimizer='adam',
+                  metrics=['categorical_accuracy'])
+
+    model.fit(x_train, y_train, batch_size=32, nb_epoch=5, validation_data=[x_test, y_test])
+
+    print(accuracy_score(np.argwhere(y_test)[:,1], model.predict_classes(x_test)))
 
 def agnews_bwords(sample=None, n_procs=None):
     if not n_procs:
@@ -554,8 +624,10 @@ def main():
         dbpedia_bembmeans(sample=sample, n_procs=n_procs)
     elif dataset == 'dbpedia' and method == 'convemb':
         dbpedia_convemb(sample=sample, n_procs=n_procs)
-    elif dataset == 'dbpedia' and method == 'convemb':
-        dbpedia_convemb(sample=sample, n_procs=n_procs)
+    elif dataset == 'dbpedia' and method == 'convgemb':
+        dbpedia_convgemb(sample=sample, n_procs=n_procs)
+    elif dataset == 'dbpedia' and method == 'smallwordconv':
+        dbpedia_smallwordconv(sample=sample, n_procs=n_procs)
     elif dataset == 'agnews' and method == 'bagwords':
         agnews_bwords(sample=sample, n_procs=n_procs)
     elif dataset == 'agnews' and method == 'bagngrams':

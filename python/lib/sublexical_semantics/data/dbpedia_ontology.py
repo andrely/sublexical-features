@@ -3,7 +3,6 @@ import os
 import bs4
 import pandas
 import requests
-from pandas.core.frame import DataFrame
 
 SUBCLASSES_QUERY = """
 SELECT ?class
@@ -45,18 +44,17 @@ ORDER BY %s(?person)
 OFFSET %s
 """
 
-
 DISTINCT_CLASSES = ['SportsTeam', 'SocietalEvent', 'MeanOfTransportation', 'Plant', 'EducationalInstitution',
-                   'OfficeHolder', 'WrittenWork', 'NaturalPlace', 'Building', 'Company',
-                   'Infrastructure', 'Film', 'SoccerPlayer', 'Artist']
+                    'OfficeHolder', 'WrittenWork', 'NaturalPlace', 'Building', 'Company',
+                    'Infrastructure', 'Film', 'SoccerPlayer', 'Artist']
 
 
 def dbpedia_ontology_dataset(data_path):
     dataframes = []
 
     for category in DISTINCT_CLASSES:
-        df = DataFrame.from_csv(os.path.join(data_path, '%s.csv' % category.lower()),
-                                encoding='utf8', index_col=False)
+        df = pandas.read_csv(os.path.join(data_path, '%s.csv' % category.lower()),
+                             encoding='utf8', index_col=False)
         df.dropna(inplace=True)
         df['category'] = category
         df.drop_duplicates(subset=['abstract'], inplace=True)
@@ -144,5 +142,3 @@ def ontology_tree():
     doc = bs4.BeautifulSoup(resp.content)
 
     return ontology_tree_inner(doc.find('ul'))
-
-
