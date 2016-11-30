@@ -371,21 +371,21 @@ def dbpedia_smallcharconv(sample=None, n_procs=None):
     model = Sequential()
     model.add(Embedding(len(CHAR_MAP) + 1, len(CHAR_MAP) + 1, input_length=1014,
                         weights=[char_embedding()], trainable=False))
-    model.add(Convolution1D(nb_filter=32, filter_length=7, border_mode='valid',
+    model.add(Convolution1D(nb_filter=256, filter_length=7, border_mode='valid',
+                            activation='relu'))
+    model.add(MaxPooling1D(pool_length=3))
+    model.add(Convolution1D(nb_filter=256, filter_length=7, border_mode='valid',
                             activation='relu', subsample_length=1))
-    model.add(MaxPooling1D(pool_length=3, stride=1))
-    model.add(Convolution1D(nb_filter=32, filter_length=7, border_mode='valid',
+    model.add(MaxPooling1D(pool_length=3))
+    model.add(Convolution1D(nb_filter=256, filter_length=3, border_mode='valid',
                             activation='relu', subsample_length=1))
-    model.add(MaxPooling1D(pool_length=3, stride=1))
-    model.add(Convolution1D(nb_filter=32, filter_length=3, border_mode='valid',
+    model.add(Convolution1D(nb_filter=256, filter_length=3, border_mode='valid',
                             activation='relu', subsample_length=1))
-    model.add(Convolution1D(nb_filter=32, filter_length=3, border_mode='valid',
+    model.add(Convolution1D(nb_filter=256, filter_length=3, border_mode='valid',
                             activation='relu', subsample_length=1))
-    model.add(Convolution1D(nb_filter=32, filter_length=3, border_mode='valid',
+    model.add(Convolution1D(nb_filter=256, filter_length=3, border_mode='valid',
                             activation='relu', subsample_length=1))
-    model.add(Convolution1D(nb_filter=32, filter_length=3, border_mode='valid',
-                            activation='relu', subsample_length=1))
-    model.add(MaxPooling1D(pool_length=3, stride=1))
+    model.add(MaxPooling1D(pool_length=3))
     model.add(Flatten())
     model.add(Dense(1024, activation='relu'))
     model.add(Dropout(.5))
@@ -397,7 +397,9 @@ def dbpedia_smallcharconv(sample=None, n_procs=None):
                   optimizer='adam',
                   metrics=['categorical_accuracy'])
 
-    model.fit(x_train, y_train, batch_size=32, nb_epoch=5, validation_data=[x_test, y_test])
+    print(model.summary())
+
+    model.fit(x_train, y_train, batch_size=64, nb_epoch=5, validation_data=[x_test, y_test])
 
     print(accuracy_score(np.argwhere(y_test)[:,1], model.predict_classes(x_test)))
 
