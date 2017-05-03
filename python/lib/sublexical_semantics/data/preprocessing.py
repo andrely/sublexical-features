@@ -7,6 +7,9 @@ from pypinyin import pinyin
 from spacy.en import English
 
 
+def flatten(list):
+    return [item for sublist in list for item in sublist]
+
 def regex_tokenize(s, regex=r'\w+'):
     return re.findall(regex, s, re.MULTILINE | re.UNICODE)
 
@@ -66,7 +69,7 @@ class DataframeSentences():
                           in nltk.tokenize.PunktSentenceTokenizer().tokenize(self.df.iloc[i][col])]
 
             if self.flatten:
-                yield [item for sublist in sents for item in sublist]
+                yield flatten(sents)
             else:
                 for sent in sents:
                     yield sent
