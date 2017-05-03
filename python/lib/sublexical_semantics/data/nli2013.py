@@ -1,3 +1,4 @@
+import io
 import os
 
 import numpy as np
@@ -21,7 +22,7 @@ def nli2013_dataset(dataset_path, fold=None):
 
         fn = row.filename
 
-        with open(os.path.join(dataset_path, FOLD_CSV[fold][0], 'tokenized', fn)) as f:
+        with io.open(os.path.join(dataset_path, FOLD_CSV[fold][0], 'tokenized', fn), encoding='utf8') as f:
             text = f.read()
 
         yield {'text': text, 'l1': row.l1, 'prompt': row.prompt, 'difficulty': row.difficulty}
